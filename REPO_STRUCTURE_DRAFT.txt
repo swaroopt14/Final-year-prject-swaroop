@@ -1,0 +1,193 @@
+.
+├── .env
+├── .env.example
+├── .gitignore
+├── ARCHITECTURE.md
+├── README.md
+├── REPO_STRUCTURE_DRAFT.txt
+├── agents
+│   ├── doctor_agent
+│   │   └── agent_spec.yaml
+│   └── langchain_tools
+│       └── __init__.py
+├── backend
+│   └── flask_app
+│       ├── .env
+│       ├── api
+│       │   └── routes
+│       │       └── patients.py
+│       ├── app.py
+│       └── services
+│           └── model_service.py
+├── deployment
+│   └── docker
+│       └── Dockerfile.backend
+├── docker-compose.yml
+├── frontend
+│   ├── .env.example
+│   ├── app
+│   │   ├── (portal)
+│   │   │   └── [role]
+│   │   │       ├── [[...slug]]
+│   │   │       │   └── page.tsx
+│   │   │       └── layout.tsx
+│   │   ├── dashboard
+│   │   │   └── page.tsx
+│   │   ├── globals.css
+│   │   ├── layout.tsx
+│   │   └── page.tsx
+│   ├── components
+│   │   ├── charts
+│   │   │   └── Sparkline.tsx
+│   │   ├── layout
+│   │   │   ├── DashboardHeader.tsx
+│   │   │   ├── ExampleDashboardLayout.tsx
+│   │   │   ├── RoleShell.tsx
+│   │   │   ├── Sidebar.tsx
+│   │   │   ├── SidebarGroup.tsx
+│   │   │   ├── SidebarItem.tsx
+│   │   │   ├── Topbar.tsx
+│   │   │   └── sidebar.config.ts
+│   │   ├── medical
+│   │   ├── pages
+│   │   │   ├── AddPatientPanel.tsx
+│   │   │   ├── AgentHealthPanel.tsx
+│   │   │   ├── AlertCenter.tsx
+│   │   │   ├── ClinicalIntelligencePanel.tsx
+│   │   │   ├── DashboardOverviewPanel.tsx
+│   │   │   ├── PatientDrawer.tsx
+│   │   │   ├── PatientHistoryPanel.tsx
+│   │   │   ├── PatientListPanel.tsx
+│   │   │   ├── RagChatConsole.tsx
+│   │   │   ├── RiskTrendsPanel.tsx
+│   │   │   ├── RolePage.tsx
+│   │   │   ├── VitalsMonitoringPanel.tsx
+│   │   │   └── ai
+│   │   │       ├── AiDiagnosisPage.tsx
+│   │   │       ├── ClinicalNotesAnalyzerPage.tsx
+│   │   │       ├── DiseasePredictionPage.tsx
+│   │   │       └── TreatmentRecommendationPage.tsx
+│   │   └── ui
+│   │       ├── Badge.tsx
+│   │       ├── Button.tsx
+│   │       ├── Card.tsx
+│   │       ├── Input.tsx
+│   │       └── Textarea.tsx
+│   ├── lib
+│   │   ├── alerts-context.tsx
+│   │   ├── api.ts
+│   │   ├── mockData.ts
+│   │   ├── tokenStore.ts
+│   │   ├── useAlertsStream.ts
+│   │   └── useMockVitalsSimulation.ts
+│   ├── next-env.d.ts
+│   ├── next.config.mjs
+│   ├── package-lock.json
+│   ├── package.json
+│   ├── postcss.config.js
+│   ├── tailwind.config.ts
+│   └── tsconfig.json
+├── models
+│   └── classical
+│       └── logistic_regression
+│           └── train.py
+├── orchestration
+│   └── langgraph
+│       └── graphs
+│           └── treatment_workflow.graph.yaml
+├── package.json
+├── pyproject.toml
+├── python-agent-service
+│   ├── README.md
+│   ├── graph.py
+│   ├── main.py
+│   └── requirements.txt
+├── python-ml-service
+│   ├── README.md
+│   ├── main.py
+│   ├── models
+│   │   └── .gitkeep
+│   └── requirements.txt
+├── requirements.txt
+├── scripts
+│   └── run_local.sh
+├── src
+│   ├── ai
+│   │   ├── index.ts
+│   │   ├── ml
+│   │   │   └── ml.client.ts
+│   │   ├── nlp
+│   │   │   └── bert.service.ts
+│   │   └── rl
+│   │       └── qlearning.service.ts
+│   ├── app.ts
+│   ├── config
+│   │   ├── db.config.ts
+│   │   └── env.config.ts
+│   ├── events
+│   │   ├── alert.events.ts
+│   │   ├── event.consumer.ts
+│   │   ├── event.publisher.ts
+│   │   ├── index.ts
+│   │   ├── kafka.mock.ts
+│   │   ├── sse.router.ts
+│   │   └── topics.ts
+│   ├── middleware
+│   │   ├── auth.middleware.ts
+│   │   ├── authQuery.middleware.ts
+│   │   ├── error.middleware.ts
+│   │   ├── logger.middleware.ts
+│   │   ├── role.middleware.ts
+│   │   └── validate.middleware.ts
+│   ├── modules
+│   │   ├── agents
+│   │   │   ├── admin.agent.ts
+│   │   │   ├── agent.orchestrator.ts
+│   │   │   ├── agent.types.ts
+│   │   │   ├── agents.controller.ts
+│   │   │   ├── agents.validation.ts
+│   │   │   ├── bootstrap.ts
+│   │   │   ├── doctor.agent.ts
+│   │   │   ├── drugchecker.agent.ts
+│   │   │   ├── index.ts
+│   │   │   ├── langgraph.client.ts
+│   │   │   ├── nurse.agent.ts
+│   │   │   └── workflowlog.model.ts
+│   │   ├── ehr
+│   │   │   ├── ehr.controller.ts
+│   │   │   ├── ehr.model.ts
+│   │   │   ├── ehr.service.ts
+│   │   │   ├── ehr.validation.ts
+│   │   │   └── index.ts
+│   │   ├── lab
+│   │   │   ├── index.ts
+│   │   │   ├── lab.controller.ts
+│   │   │   ├── lab.model.ts
+│   │   │   ├── lab.service.ts
+│   │   │   └── lab.validation.ts
+│   │   ├── pharmacy
+│   │   │   ├── drug.rules.ts
+│   │   │   ├── index.ts
+│   │   │   ├── pharmacy.controller.ts
+│   │   │   ├── pharmacy.service.ts
+│   │   │   └── pharmacy.validation.ts
+│   │   └── vitals
+│   │       ├── index.ts
+│   │       ├── vitals.controller.ts
+│   │       ├── vitals.model.ts
+│   │       ├── vitals.service.ts
+│   │       └── vitals.validation.ts
+│   ├── routes.ts
+│   ├── scripts
+│   │   ├── issue-token.ts
+│   │   └── seed.ts
+│   ├── server.ts
+│   └── utils
+│       ├── fhir.mapper.ts
+│       ├── hl7.parser.ts
+│       ├── httpError.ts
+│       ├── response.wrapper.ts
+│       └── risk.calculator.ts
+└── tsconfig.json
+
+51 directories, 140 files

@@ -1,0 +1,23 @@
+meta:
+  name: treatment_workflow
+  description: "High-level LangGraph workflow that routes patient through triage, doctor diagnosis, drug-check and admin scheduling."
+nodes:
+  - id: triage
+    type: agent
+    agent: nurse_agent
+  - id: diagnosis
+    type: agent
+    agent: doctor_agent
+  - id: med_review
+    type: agent
+    agent: drug_checker_agent
+  - id: schedule
+    type: agent
+    agent: admin_agent
+edges:
+  - from: triage
+    to: diagnosis
+  - from: diagnosis
+    to: med_review
+  - from: med_review
+    to: schedule

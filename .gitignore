@@ -1,0 +1,16 @@
+__pycache__/
+.venv/
+.venv-ml/
+.venv-ml312/
+env/
+*.pyc
+*.pkl
+/.vscode/
+data/raw/
+data/processed/
+node_modules/
+dist/
+.next/
+.DS_Store
+.env
+.sfdx/

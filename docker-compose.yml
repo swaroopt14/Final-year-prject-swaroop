@@ -1,0 +1,75 @@
+services:
+  mongo:
+    image: mongo:7
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_DATABASE: ai_smart_hospital
+    volumes:
+      - mongo_data:/data/db
+
+  ml-service:
+    image: python:3.11-slim
+    working_dir: /app
+    volumes:
+      - ./python-ml-service:/app/python-ml-service
+    command: >
+      bash -lc "pip install -r python-ml-service/requirements.txt
+      && uvicorn python-ml-service.main:app --host 0.0.0.0 --port 5000"
+    ports:
+      - "5000:5000"
+
+  agent-service:
+    image: python:3.11-slim
+    working_dir: /app
+    environment:
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+    volumes:
+      - ./python-agent-service:/app/python-agent-service
+    command: >
+      bash -lc "pip install -r python-agent-service/requirements.txt
+      && uvicorn python-agent-service.main:app --host 0.0.0.0 --port 7000"
+    ports:
+      - "7000:7000"
+
+  api:
+    image: node:22-alpine
+    working_dir: /app
+    environment:
+      NODE_ENV: development
+      PORT: 3000
+      MONGODB_URI: mongodb://mongo:27017/ai_smart_hospital
+      JWT_SECRET: replace_me_in_production_change_this
+      ML_SERVICE_BASE_URL: http://ml-service:5000
+      AGENT_SERVICE_BASE_URL: http://agent-service:7000
+      CORS_ORIGIN: "*"
+    volumes:
+      - ./:/app
+    command: >
+      sh -lc "npm install
+      && npm run seed
+      && npm run dev"
+    ports:
+      - "3000:3000"
+    depends_on:
+      - mongo
+      - ml-service
+      - agent-service
+
+  web:
+    image: node:22-alpine
+    working_dir: /app/frontend
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:3000
+    volumes:
+      - ./:/app
+    command: >
+      sh -lc "npm install
+      && npm run dev"
+    ports:
+      - "3001:3001"
+    depends_on:
+      - api
+
+volumes:
+  mongo_data:

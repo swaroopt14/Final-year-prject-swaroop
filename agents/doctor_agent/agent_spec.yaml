@@ -1,0 +1,8 @@
+name: doctor_agent
+role: Provide diagnosis suggestions and differential reasoning using clinical context.
+tools:
+  - diagnosis_tool
+  - risk_scoring
+safety:
+  - require_explainability: true
+  - max_recommendation_confidence: 0.9

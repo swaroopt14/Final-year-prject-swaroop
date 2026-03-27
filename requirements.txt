@@ -1,0 +1,11 @@
+flask>=2.0
+scikit-learn>=1.0
+langchain>=0.0.200
+langgraph>=0.1.0
+pyyaml
+pandas
+numpy
+shap
+lime
+gunicorn
+uvicorn
