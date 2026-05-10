@@ -13,10 +13,10 @@ async function seed() {
       mrn: "MRN-1001",
       firstName: "Aarav",
       lastName: "Patel",
-      dateOfBirth: new Date("1968-04-12"),
+      dateOfBirth: new Date("1953-04-12"),
       sex: "male",
       allergies: ["penicillin"],
-      comorbidities: ["hypertension"]
+      comorbidities: ["hypertension", "depression", "type2_diabetes"]
     },
     {
       mrn: "MRN-1002",
@@ -58,6 +58,8 @@ async function seed() {
 
   const now = Date.now();
   const vitals = [];
+
+  // Generic vitals for patients 1..N
   for (let i = 0; i < 10; i++) {
     const patient = patients[i % patients.length]!;
     vitals.push({
@@ -70,6 +72,28 @@ async function seed() {
       temperatureC: 36.7 + (i % 4) * 0.1
     });
   }
+
+  // Acute-stroke progression for Aarav (5 readings over the last 25 min,
+  // newest first). Used by the stroke case-study walkthrough on Day 11.
+  const stroke = [
+    { mins: 25, hr: 92, sys: 148, dia: 94, spo2: 96, temp: 37.1 },
+    { mins: 20, hr: 98, sys: 162, dia: 98, spo2: 95, temp: 37.2 },
+    { mins: 15, hr: 104, sys: 174, dia: 102, spo2: 93, temp: 37.3 },
+    { mins: 10, hr: 110, sys: 184, dia: 106, spo2: 90, temp: 37.4 },
+    { mins: 3, hr: 116, sys: 188, dia: 110, spo2: 88, temp: 37.6 }
+  ];
+  for (const v of stroke) {
+    vitals.push({
+      patientId: patients[0]!._id,
+      recordedAt: new Date(now - v.mins * 60_000),
+      heartRateBpm: v.hr,
+      systolicMmHg: v.sys,
+      diastolicMmHg: v.dia,
+      spo2Pct: v.spo2,
+      temperatureC: v.temp
+    });
+  }
+
   await VitalRecordModel.insertMany(vitals);
 
   await LabReportModel.insertMany([

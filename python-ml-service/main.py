@@ -225,20 +225,36 @@ def health() -> Dict[str, Any]:
 def _predict_impl(req: PredictRequest) -> PredictResponse:
     x = _feature_vector(req.patient)
 
-    # Primary: use RandomForest if present, otherwise Logistic, otherwise fallback rule.
-    if models.random_forest is not None:
-        try:
-            proba = models.random_forest.predict_proba(x)[0][1]
-            return PredictResponse(prediction={"risk_score": float(proba), "model": "random_forest"})
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"rf_predict_failed: {e}")
+    # Primary: Logistic Regression (well-calibrated probabilities for the
+    # role-based dashboards). Random Forest score is returned alongside as a
+    # higher-AUC second opinion for the audit trail. Falls back to a rule when
+    # no artifacts are present.
+    logistic_score: Optional[float] = None
+    rf_score: Optional[float] = None
 
     if models.logistic is not None:
         try:
-            proba = models.logistic.predict_proba(x)[0][1]
-            return PredictResponse(prediction={"risk_score": float(proba), "model": "logistic_regression"})
+            logistic_score = float(models.logistic.predict_proba(x)[0][1])
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"logistic_predict_failed: {e}")
+
+    if models.random_forest is not None:
+        try:
+            rf_score = float(models.random_forest.predict_proba(x)[0][1])
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"rf_predict_failed: {e}")
+
+    if logistic_score is not None:
+        return PredictResponse(
+            prediction={
+                "risk_score": logistic_score,
+                "model": "logistic_regression",
+                "random_forest_score": rf_score,
+            }
+        )
+
+    if rf_score is not None:
+        return PredictResponse(prediction={"risk_score": rf_score, "model": "random_forest"})
 
     # Fallback: simple explainable score (keeps demo working without artifacts)
     age = float(req.patient.get("age", 50))

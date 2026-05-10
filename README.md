@@ -1,105 +1,159 @@
-# Smart Hospital — Multi-Agent AI System (Research-ready scaffold)
+# SmartCare+ — AI-Powered Multi-Agent Smart Hospital System
 
-This repository provides a concise, research-oriented scaffold for building, evaluating, and demonstrating a Multi-Agent Smart Hospital System suitable for a final-year engineering project, conference or journal submission, and an interactive demo/viva.
+Final-year project that walks through an Acute Stroke Emergency case study using a multi-agent AI platform: Doctor, Nurse, Drug Checker, Admin, plus an orchestrated LangGraph workflow with a real ML risk model and a Gemini-backed clinical summary.
 
-Goals
-- Provide a Python-first backend and CI-friendly structure for reproducible experiments.
-- Use classical ML (Logistic Regression, Random Forest) for transparent, explainable decision models.
-- Combine small ML models with LLM-powered agent tooling (LangChain) and orchestrate multi-agent flows with LangGraph.
-- Be Vertex AI–ready for later cloud deployment while remaining runnable locally.
+> **Build state:** the repo is mid-MVP. See [`MVP_PLAN.md`](./MVP_PLAN.md) for the day-by-day execution plan and current status.
 
-Node.js Backend (Production API)
-- This repo now includes a production-grade Node.js + Express + TypeScript API under `src/`.
-- Modular modules: EHR, Lab, Vitals, Pharmacy, Agents; plus events, middleware, utilities.
-- Event-driven alerts are delivered via a Kafka-style in-memory event bus (mock) and exposed to the frontend via SSE.
+---
 
-Core concepts (concise)
-- ML models: trained with `scikit-learn`, stored as artifacts in `models/` and explained via SHAP/LIME in `models/explainability/`.
-- Agents: `Doctor`, `Nurse`, `Drug Checker`, `Admin` implemented as LangChain tools/adapters in `agents/`. Each agent has an `agent_spec.yaml` and lightweight tools that call ML services or rules.
-- Orchestration: LangGraph workflows in `orchestration/langgraph/graphs/` connect agents into clinical pipelines (triage → diagnosis → medication review → scheduling).
-- Backend: `Flask` REST API (in `backend/flask_app/`) exposes model inference, agent endpoints, and simulation control for demos.
-- Explainability & Safety: `privacy_and_ethics/` and `models/explainability/` contain policies and artifacts required for healthcare-safe explanations.
+## Architecture (real, not aspirational)
 
-Agent roles (short)
-- Doctor: synthesizes patient context, proposes differential diagnoses, returns rationale and confidence; requests tests or medication reviews when needed.
-- Nurse: triage, vitals monitoring, escalation rules; pre-processes patient inputs for downstream agents.
-- Drug Checker: deterministic/rule-based interaction and contraindication checks against `data/drug_database.csv` (plus ML risk heuristics).
-- Admin: scheduling, audit logging, and resource allocation; enforces workflow and records decisions for reproducibility.
-
-How ML + LLM + Orchestration connect
-1. A patient record (JSON) is POSTed to the Flask API (`/predict` or agent endpoints).
-2. Lightweight ML models in `models/classical/` compute risk scores and features used by agents.
-3. LangChain tools wrap ML services and rule-based utilities; prompts and templates live in `agents/langchain_tools/`.
-4. LangGraph orchestrator runs the `treatment_workflow.graph.yaml`, invoking agents in defined order and collecting structured outputs.
-5. Explainability modules (SHAP/LIME) produce explanations attached to predictions before any clinical recommendation is returned.
-
-Research & paper mapping
-- `docs/paper/04_System_Architecture.md` references `orchestration/` and `agents/` artifacts.
-- `docs/paper/05_Methods.md` references `models/` training scripts and `models/explainability/` analyses.
-- `experiments/` records reproducible runs; `notebooks/` demonstrate baseline experiments and simulations used in the paper.
-
-# Final-year-prject-swaroop
-
-Quick start (local)
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-./scripts/run_local.sh
-# then POST a sample patient:
-curl -sS -X POST http://127.0.0.1:5000/predict -H 'Content-Type: application/json' -d '{"patient": {"age": 72, "num_comorbidities": 2}}' | jq
+```
+            ┌──────────────────────────────────────┐
+            │  Next.js 16 — frontend2              │
+            │  /login  /[slug] dashboards          │  port 3001
+            └──────────────┬───────────────────────┘
+                           │ HTTPS + JWT cookie
+                           ▼
+            ┌──────────────────────────────────────┐
+            │  Node + Express + TypeScript — src/  │  port 3000
+            │  Auth · EHR · Lab · Vitals · Pharmacy│
+            │  Agents orchestrator · SSE stream    │
+            └─┬────────────────┬────────────────┬──┘
+              │                │                │
+              ▼                ▼                ▼
+    ┌──────────────┐  ┌──────────────────┐  ┌─────────────────────┐
+    │ MongoDB 7    │  │ python-ml-       │  │ python-agent-       │
+    │ (ai_smart_   │  │ service          │  │ service             │
+    │  hospital)   │  │ FastAPI          │  │ FastAPI + LangGraph │
+    │ port 27017   │  │ scikit-learn     │  │ + Gemini fallback   │
+    │              │  │ ClinicalBERT     │  │                     │
+    │              │  │ port 5000        │  │ port 7000           │
+    └──────────────┘  └──────────────────┘  └─────────────────────┘
 ```
 
-Quick start (Docker Compose: Node API + Mongo + ML + LangGraph Agent Service)
+Stack lock-in:
+- Frontend: `frontend2/` only.
+- Node API: `src/`.
+- Python services: `python-ml-service/` + `python-agent-service/`.
+- DB: MongoDB locally; Cosmos DB Mongo API in cloud.
+- Cloud target: Azure Container Apps (primary), AWS ECS Fargate (fallback).
+
+---
+
+## Quick start (Docker Compose, all services)
+
 ```bash
-# set Gemini key for agent service
-export GEMINI_API_KEY="..."
+cp .env.example .env
+# Edit .env: set GEMINI_API_KEY (optional, falls back to stub) and JWT_SECRET
 docker compose up
 ```
 
-Quick start (Dashboard UI: Next.js + React)
+This brings up:
+- `mongo` on `:27017`
+- `ml-service` on `:5000` (FastAPI, scikit-learn + ClinicalBERT)
+- `agent-service` on `:7000` (FastAPI + LangGraph + Gemini)
+- `api` on `:3000` (Node Express, runs `npm install`, `npm run seed`, `npm run dev`)
+- `web` on `:3001` (Next.js dashboard)
+
+Verify health:
+
 ```bash
-cd frontend
-cp .env.example .env.local
-npm install
-npm run dev
-# open http://127.0.0.1:3001
+curl http://localhost:3000/api/health
+curl http://localhost:5000/health
+curl http://localhost:7000/health
 ```
 
-Frontend integration notes (how data is displayed)
-- Core REST APIs return JSON with a stable `{ data: ... }` wrapper.
-- Real-time alerts (vitals/drug/high-risk) are streamed via SSE:
-  - endpoint: `GET /api/events/stream?token=<JWT>`
-  - events: `vitals.stream`, `high_risk_alert`, `drug_alert`
-- Doctor workflow evaluation:
-  - `POST /api/agents/doctor/evaluate`
-  - returns the existing doctor output plus `workflow` (LangGraph + Gemini summary) when the agent service is reachable.
- - Dashboard implementation lives at `frontend/app/dashboard/page.tsx` and consumes:
-   - `GET /api/ehr/patients`
-   - `GET /api/vitals/records?patientId=...`
-   - `GET /api/lab/reports?patientId=...`
-   - `POST /api/pharmacy/prescription/check`
-   - `POST /api/agents/doctor/evaluate`
-   - `GET /api/events/stream?token=...` (SSE)
+---
 
-Vertex AI readiness notes
-- Keep model-serving code isolated in `backend/flask_app/services/` (or a separate predictor module) to simplify containerization and Vertex custom container deployment.
-- `deployment/vertex_ai/` contains starter deploy scripts and YAML examples for Vertex endpoints.
+## Train the ML risk model (one-time)
 
-Ethics & explainability
-- See `privacy_and_ethics/` for threat model, data handling and explainability policy.
-- Attach SHAP summary plots and textual explanation templates to agent responses in demos to satisfy healthcare-safety reviewer concerns.
+The ML service falls back to a deterministic sigmoid until trained `.pkl` files exist. Run the trainer once to produce real models:
 
-Repository map (high-level)
-- `data/` — provenance, synthetic data generator, dataset descriptions.
-- `models/` — training, evaluation, explainability artifacts.
-- `agents/` — agent specs, LangChain tools, prompt templates.
-- `orchestration/` — LangGraph graphs and pipelines.
-- `backend/` — Flask REST APIs and services.
-- `deployment/` — Docker, Vertex AI configs, infra examples.
-- `docs/` — paper sections, figures, slides for viva.
+```bash
+# Use the project venv (already created at .venv-ml312)
+source .venv-ml312/bin/activate
+pip install -r python-ml-service/requirements.txt
+python models/classical/logistic_regression/train.py
+```
 
-If you want, I can now:
-- scaffold LangChain tool adapters for one agent (Doctor), or
-- scaffold a LangGraph orchestrator runner that executes the `treatment_workflow.graph.yaml`, or
-- create the detailed paper draft in `docs/paper/*` from the structure above.
+This writes `python-ml-service/models/logistic.pkl` and `python-ml-service/models/rf.pkl`. The ML service auto-loads them on startup.
+
+Verify with a stroke-style payload:
+
+```bash
+curl -sS -X POST http://localhost:5000/predict \
+  -H 'Content-Type: application/json' \
+  -d '{"patient":{"age":72,"num_comorbidities":2,"systolic_bp":178,"spo2":92,"temperature_c":37.2}}' | jq
+# expect probability >= 0.6 with model_used = "logistic_regression" (not "fallback")
+```
+
+---
+
+## Frontend dashboard
+
+```bash
+cd frontend2
+npm install
+npm run dev
+# http://localhost:3001
+```
+
+Wires to the Node API at `NEXT_PUBLIC_API_BASE_URL` (default `http://localhost:3000`).
+
+---
+
+## API surface (Node, port 3000)
+
+- `POST /api/auth/login` · `POST /api/auth/logout` · `GET /api/auth/me`
+- `GET /api/ehr/patients` · `GET /api/ehr/patients/:id`
+- `GET /api/vitals/records?patientId=` · `POST /api/vitals/records`
+- `GET /api/lab/reports?patientId=` · `POST /api/lab/reports`
+- `POST /api/pharmacy/prescription/check`
+- `POST /api/agents/doctor/evaluate` (Doctor → Chief → DrugChecker → LangGraph → Audit)
+- `GET /api/agents/decisions` (audit log)
+- `GET /api/events/stream` (SSE: `vitals.stream`, `high_risk_alert`, `drug_alert`)
+- `POST /api/simulations/start` · `POST /api/simulations/stop`
+
+Curl-by-curl walkthrough lives in [`BACKEND_CURL_TESTS.md`](./BACKEND_CURL_TESTS.md).
+
+---
+
+## Repo map
+
+```
+fp/
+├── src/                      # Node + Express API (TypeScript)
+│   ├── modules/
+│   │   ├── ehr/  lab/  vitals/  pharmacy/  agents/  simulations/  auth/
+│   ├── events/               # SSE + Kafka-mock event bus
+│   ├── middlewares/          # JWT auth, error handler, request log
+│   └── scripts/              # seed.ts, issue-token.ts
+├── python-ml-service/        # FastAPI: /predict, /predict/risk, /analyze/notes, /qlearning/update
+│   ├── main.py
+│   └── models/               # logistic.pkl, rf.pkl (generated)
+├── python-agent-service/     # FastAPI + LangGraph 4-node graph (Gemini)
+│   ├── main.py
+│   └── graph.py              # nurse_triage → doctor_assess → drug_check → llm_summarize
+├── models/classical/         # Trainer scripts (synthetic data → .pkl)
+├── frontend2/                # Next.js 16 dashboard (active)
+├── frontend/                 # legacy Next.js, read-only reference
+├── tests/                    # vitest (Node side)
+├── docker-compose.yml
+├── .env.example
+├── ARCHITECTURE.md
+├── MVP_PLAN.md               # 12-day execution plan
+└── README.md
+```
+
+---
+
+## Project documentation
+
+- [`MVP_PLAN.md`](./MVP_PLAN.md) — day-by-day plan with acceptance tests and the case-study mapping
+- [`ARCHITECTURE.md`](./ARCHITECTURE.md) — long-form architecture notes
+- [`BACKEND_CURL_TESTS.md`](./BACKEND_CURL_TESTS.md) — curl recipes for every endpoint
+
+## License
+
+Academic project, PCCOE Department of Computer Engineering, 2025–26.

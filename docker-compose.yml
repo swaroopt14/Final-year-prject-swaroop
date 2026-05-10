@@ -42,7 +42,7 @@ services:
       JWT_SECRET: replace_me_in_production_change_this
       ML_SERVICE_BASE_URL: http://ml-service:5000
       AGENT_SERVICE_BASE_URL: http://agent-service:7000
-      CORS_ORIGIN: "*"
+      CORS_ORIGIN: http://localhost:3001
     volumes:
       - ./:/app
     command: >
@@ -58,14 +58,14 @@ services:
 
   web:
     image: node:22-alpine
-    working_dir: /app/frontend
+    working_dir: /app/frontend2
     environment:
       NEXT_PUBLIC_API_BASE_URL: http://localhost:3000
     volumes:
       - ./:/app
     command: >
       sh -lc "npm install
-      && npm run dev"
+      && npm run dev -- -p 3001"
     ports:
       - "3001:3001"
     depends_on:
