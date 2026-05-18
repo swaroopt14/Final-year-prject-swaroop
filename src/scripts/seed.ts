@@ -1,4 +1,6 @@
 import { connectToDatabase, disconnectFromDatabase } from "../config/db.config.js";
+import { UserModel } from "../modules/auth/auth.model.js";
+import { authService } from "../modules/auth/auth.service.js";
 import { PatientModel } from "../modules/ehr/ehr.model.js";
 import { LabReportModel } from "../modules/lab/lab.model.js";
 import { VitalRecordModel } from "../modules/vitals/vitals.model.js";
@@ -6,7 +8,38 @@ import { VitalRecordModel } from "../modules/vitals/vitals.model.js";
 async function seed() {
   await connectToDatabase();
 
-  await Promise.all([PatientModel.deleteMany({}), VitalRecordModel.deleteMany({}), LabReportModel.deleteMany({})]);
+  const demoPasswordHash = await authService.hashPassword("demo1234");
+
+  await Promise.all([
+    UserModel.deleteMany({}),
+    PatientModel.deleteMany({}),
+    VitalRecordModel.deleteMany({}),
+    LabReportModel.deleteMany({})
+  ]);
+
+  await UserModel.insertMany([
+    {
+      email: "dr.rao@smartcare.dev",
+      passwordHash: demoPasswordHash,
+      name: "Dr. Rao",
+      role: "doctor",
+      department: "Neurology"
+    },
+    {
+      email: "nurse.priya@smartcare.dev",
+      passwordHash: demoPasswordHash,
+      name: "Nurse Priya",
+      role: "nurse",
+      department: "Emergency"
+    },
+    {
+      email: "admin@smartcare.dev",
+      passwordHash: demoPasswordHash,
+      name: "Admin",
+      role: "admin",
+      department: "Operations"
+    }
+  ]);
 
   const patients = await PatientModel.insertMany([
     {

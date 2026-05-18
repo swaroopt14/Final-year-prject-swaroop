@@ -136,8 +136,7 @@ fp/
 │   ├── main.py
 │   └── graph.py              # nurse_triage → doctor_assess → drug_check → llm_summarize
 ├── models/classical/         # Trainer scripts (synthetic data → .pkl)
-├── frontend2/                # Next.js 16 dashboard (active)
-├── frontend/                 # legacy Next.js, read-only reference
+├── frontend2/                # Next.js 16 dashboard (only frontend)
 ├── tests/                    # vitest (Node side)
 ├── docker-compose.yml
 ├── .env.example
@@ -150,7 +149,11 @@ fp/
 
 ## Project documentation
 
-- [`MVP_PLAN.md`](./MVP_PLAN.md) — day-by-day plan with acceptance tests and the case-study mapping
+- [`docs/STARTUP_MVP_4DAY_PLAN.md`](./docs/STARTUP_MVP_4DAY_PLAN.md) — **active** startup MVP sprint (Days 3–6)
+- [`docs/SAYALI_CHECKLIST.md`](./docs/SAYALI_CHECKLIST.md) — Sayali daily tasks + git push
+- [`docs/MIKE_CHECKLIST.md`](./docs/MIKE_CHECKLIST.md) — Mike daily tasks + git push
+- [`docs/TEAM_4DAY_MVP_GUIDE.md`](./docs/TEAM_4DAY_MVP_GUIDE.md) — parallel workflow + smoke tests
+- [`MVP_PLAN.md`](./MVP_PLAN.md) — original 12-day plan (archive)
 - [`ARCHITECTURE.md`](./ARCHITECTURE.md) — long-form architecture notes
 - [`BACKEND_CURL_TESTS.md`](./BACKEND_CURL_TESTS.md) — curl recipes for every endpoint
 

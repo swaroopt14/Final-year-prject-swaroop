@@ -1,8 +1,15 @@
 "use client"
 
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import {
   Activity,
+  Calendar,
+  ChevronDown,
+  Download,
+  Filter,
+  LogOut,
+  MoreVertical,
   AlertTriangle,
   BarChart3,
   Bot,
@@ -13,6 +20,7 @@ import {
   LayoutDashboard,
   MessageSquare,
   Pill,
+  Scan,
   Search,
   Settings,
   ShieldAlert,
@@ -34,6 +42,8 @@ import {
   XAxis,
   YAxis,
 } from "recharts"
+import { api } from "@/lib/api"
+import { isNavVisible, roleGreeting, userInitials, type SessionUser } from "@/lib/auth"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -72,6 +82,11 @@ import {
   testingSignals,
   interoperabilityFlows,
   wardLoadMatrix,
+  imagingModalities,
+  imagingThroughputData,
+  imagingAiFlagData,
+  aiDoctorCapabilities,
+  aiDoctorDataSources,
   type AgentName,
   type ChatMessage,
   type IntelligenceAlert,
@@ -96,18 +111,44 @@ const pageIcons = {
   predictions: BarChart3,
   "vitals-trends": Activity,
   "hospital-load": ShieldAlert,
+  "imaging-monitoring": Scan,
   settings: Settings,
   logs: ChevronRight,
   "model-insights": Brain,
 } satisfies Record<PageSlug, React.ComponentType<{ className?: string }>>
 
-function groupedNavigation() {
+function groupedNavigation(role: SessionUser["role"]) {
+  const visible = navigationItems.filter((item) => isNavVisible(role, item.slug))
   return [
-    { label: "Main", items: navigationItems.filter((item) => item.section === "Main") },
-    { label: "Agents", items: navigationItems.filter((item) => item.section === "Agents") },
-    { label: "Analytics", items: navigationItems.filter((item) => item.section === "Analytics") },
-    { label: "System", items: navigationItems.filter((item) => item.section === "System") },
-  ]
+    { label: "Overview", items: visible.filter((item) => ["dashboard"].includes(item.slug)) },
+    {
+      label: "Patient Care",
+      items: visible.filter((item) =>
+        ["patients", "patient-registry", "alerts", "reports", "vitals-trends"].includes(item.slug),
+      ),
+    },
+    {
+      label: "AI System",
+      items: visible.filter((item) =>
+        [
+          "ai-insights",
+          "chat-assistant",
+          "doctor-agent",
+          "nurse-agent",
+          "drug-agent",
+          "admin-agent",
+          "predictions",
+          "imaging-monitoring",
+        ].includes(item.slug),
+      ),
+    },
+    {
+      label: "Operations",
+      items: visible.filter((item) =>
+        ["hospital-load", "logs", "model-insights", "settings"].includes(item.slug),
+      ),
+    },
+  ].filter((group) => group.items.length > 0)
 }
 
 function formatConfidence(value: number) {
@@ -117,54 +158,54 @@ function formatConfidence(value: number) {
 function toneClass(tone: MetricCard["tone"]) {
   switch (tone) {
     case "critical":
-      return "from-rose-500/25 to-rose-500/5"
+      return "bg-rose-50 border-rose-200 text-rose-900"
     case "warning":
-      return "from-amber-400/22 to-amber-400/5"
+      return "bg-amber-50 border-amber-200 text-amber-900"
     case "good":
-      return "from-emerald-400/22 to-emerald-400/5"
+      return "bg-emerald-50 border-emerald-200 text-emerald-900"
     case "info":
     default:
-      return "from-cyan-400/22 to-cyan-400/5"
+      return "bg-cyan-50 border-cyan-200 text-cyan-900"
   }
 }
 
 function statusClass(status: PatientRecord["status"]) {
   switch (status) {
     case "Critical":
-      return "bg-rose-500/15 text-rose-100 ring-1 ring-inset ring-rose-400/20"
+      return "bg-rose-100 text-rose-900 ring-1 ring-inset ring-rose-200"
     case "Watch":
-      return "bg-amber-400/15 text-amber-100 ring-1 ring-inset ring-amber-300/20"
+      return "bg-amber-100 text-amber-900 ring-1 ring-inset ring-amber-200"
     case "Improving":
-      return "bg-cyan-400/15 text-cyan-100 ring-1 ring-inset ring-cyan-300/20"
+      return "bg-cyan-100 text-cyan-900 ring-1 ring-inset ring-cyan-200"
     case "Stable":
     default:
-      return "bg-emerald-400/15 text-emerald-100 ring-1 ring-inset ring-emerald-300/20"
+      return "bg-emerald-100 text-emerald-900 ring-1 ring-inset ring-emerald-200"
   }
 }
 
 function severityClass(severity: IntelligenceAlert["severity"]) {
   switch (severity) {
     case "Critical":
-      return "bg-rose-500/15 text-rose-100 ring-1 ring-inset ring-rose-400/20"
+      return "bg-rose-100 text-rose-900 ring-1 ring-inset ring-rose-200"
     case "High":
-      return "bg-amber-400/15 text-amber-100 ring-1 ring-inset ring-amber-300/20"
+      return "bg-amber-100 text-amber-900 ring-1 ring-inset ring-amber-200"
     case "Medium":
     default:
-      return "bg-cyan-400/15 text-cyan-100 ring-1 ring-inset ring-cyan-300/20"
+      return "bg-cyan-100 text-cyan-900 ring-1 ring-inset ring-cyan-200"
   }
 }
 
 function agentClass(agent: AgentName) {
   switch (agent) {
     case "Doctor Agent":
-      return "bg-cyan-400/15 text-cyan-100"
+      return "bg-cyan-100 text-cyan-900"
     case "Nurse Agent":
-      return "bg-emerald-400/15 text-emerald-100"
+      return "bg-emerald-100 text-emerald-900"
     case "Drug Agent":
-      return "bg-amber-400/15 text-amber-100"
+      return "bg-amber-100 text-amber-900"
     case "Admin Agent":
     default:
-      return "bg-violet-400/15 text-violet-100"
+      return "bg-violet-100 text-violet-900"
   }
 }
 
@@ -185,9 +226,9 @@ function accentBar(accent: InsightCard["accent"]) {
 }
 
 function modelStatus(status: string) {
-  if (status === "Healthy") return "bg-emerald-400/15 text-emerald-100"
-  if (status === "Monitoring") return "bg-amber-400/15 text-amber-100"
-  return "bg-rose-500/15 text-rose-100"
+  if (status === "Healthy") return "bg-emerald-100 text-emerald-900"
+  if (status === "Monitoring") return "bg-amber-100 text-amber-900"
+  return "bg-rose-100 text-rose-900"
 }
 
 function Surface({
@@ -200,7 +241,7 @@ function Surface({
   return (
     <section
       className={cn(
-        "rounded-[28px] border border-white/10 bg-white/5 p-5 shadow-[0_24px_80px_rgba(2,6,23,0.36)] backdrop-blur-xl",
+        "rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm ",
         className,
       )}
     >
@@ -210,10 +251,14 @@ function Surface({
 }
 
 function AgentPill({ agent }: { agent: AgentName }) {
+  const imgSrc = agent === "Doctor Agent" ? "/doctor.png" : agent === "Nurse Agent" ? "/nurse.png" : undefined;
   return (
-    <span className={cn("inline-flex rounded-full px-3 py-1 text-[11px] font-medium", agentClass(agent))}>
-      {agent}
-    </span>
+    <div className="flex items-center gap-2">
+      {imgSrc && <img src={imgSrc} alt={agent} className="h-6 w-6 rounded-full shadow-sm bg-slate-50 object-cover" />}
+      <span className={cn("inline-flex rounded-full px-3 py-1 text-[11px] font-medium", agentClass(agent))}>
+        {agent}
+      </span>
+    </div>
   )
 }
 
@@ -231,11 +276,11 @@ function SectionHeader({
   return (
     <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
       <div>
-        <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-cyan-200/70">
+        <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-cyan-600">
           {eyebrow}
         </div>
-        <h2 className="mt-2 text-xl font-semibold text-white">{title}</h2>
-        <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-300">{description}</p>
+        <h2 className="mt-2 text-xl font-semibold text-slate-900">{title}</h2>
+        <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">{description}</p>
       </div>
       {action}
     </div>
@@ -252,9 +297,9 @@ function SmallMetric({
   note: string
 }) {
   return (
-    <div className="rounded-[22px] border border-white/10 bg-slate-950/45 p-4">
-      <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">{label}</div>
-      <div className="mt-2 text-2xl font-semibold text-white">{value}</div>
+    <div className="rounded-[22px] border border-slate-200 bg-slate-50 p-4">
+      <div className="text-[11px] uppercase tracking-[0.22em] text-slate-400">{label}</div>
+      <div className="mt-2 text-2xl font-semibold text-slate-900">{value}</div>
       <div className="mt-1 text-xs leading-5 text-slate-400">{note}</div>
     </div>
   )
@@ -281,7 +326,7 @@ function TrendCard({
     <Surface>
       <div className="flex items-start justify-between gap-3">
         <div>
-          <div className="text-sm font-medium text-white">{title}</div>
+          <div className="text-sm font-medium text-slate-900">{title}</div>
           <div className="mt-1 text-sm text-slate-400">{subtitle}</div>
         </div>
       </div>
@@ -294,10 +339,10 @@ function TrendCard({
               <YAxis tick={{ fill: "#94a3b8", fontSize: 12 }} axisLine={false} tickLine={false} />
               <Tooltip
                 contentStyle={{
-                  background: "rgba(2, 6, 23, 0.95)",
-                  border: "1px solid rgba(255,255,255,0.08)",
+                  background: "#ffffff",
+                  border: "1px solid rgba(0,0,0,0.1)",
                   borderRadius: 16,
-                  color: "#e2e8f0",
+                  color: "#0f172a",
                 }}
               />
               <Bar dataKey={dataKey} fill={color} radius={[10, 10, 0, 0]} />
@@ -315,10 +360,10 @@ function TrendCard({
               <YAxis tick={{ fill: "#94a3b8", fontSize: 12 }} axisLine={false} tickLine={false} />
               <Tooltip
                 contentStyle={{
-                  background: "rgba(2, 6, 23, 0.95)",
-                  border: "1px solid rgba(255,255,255,0.08)",
+                  background: "#ffffff",
+                  border: "1px solid rgba(0,0,0,0.1)",
                   borderRadius: 16,
-                  color: "#e2e8f0",
+                  color: "#0f172a",
                 }}
               />
               <Area type="monotone" dataKey={dataKey} stroke={color} strokeWidth={3} fill={`url(#gradient-${dataKey})`} />
@@ -330,10 +375,10 @@ function TrendCard({
               <YAxis tick={{ fill: "#94a3b8", fontSize: 12 }} axisLine={false} tickLine={false} />
               <Tooltip
                 contentStyle={{
-                  background: "rgba(2, 6, 23, 0.95)",
-                  border: "1px solid rgba(255,255,255,0.08)",
+                  background: "#ffffff",
+                  border: "1px solid rgba(0,0,0,0.1)",
                   borderRadius: 16,
-                  color: "#e2e8f0",
+                  color: "#0f172a",
                 }}
               />
               <Line type="monotone" dataKey={dataKey} stroke={color} strokeWidth={3} dot={false} />
@@ -378,13 +423,13 @@ function SignalBars({
         {items.map((item) => (
           <div key={item.label}>
             <div className="flex items-center justify-between gap-3 text-sm">
-              <span className="text-slate-200">{item.label}</span>
-              <span className="font-medium text-white">{item.value}%</span>
+              <span className="text-slate-700">{item.label}</span>
+              <span className="font-medium text-slate-900">{item.value}%</span>
             </div>
-            <div className="mt-2 h-2 rounded-full bg-white/8">
+            <div className="mt-2 h-2 rounded-full bg-slate-100">
               <div className={cn("h-2 rounded-full", colorClass)} style={{ width: `${item.value}%` }} />
             </div>
-            {item.note ? <div className="mt-2 text-xs leading-5 text-slate-500">{item.note}</div> : null}
+            {item.note ? <div className="mt-2 text-xs leading-5 text-slate-400">{item.note}</div> : null}
           </div>
         ))}
       </div>
@@ -408,11 +453,11 @@ function NarrativeList({
       <SectionHeader eyebrow={eyebrow} title={title} description={description} />
       <div className="mt-5 space-y-3">
         {items.map((item) => (
-          <div key={`${item.title}-${item.detail}`} className="rounded-[22px] border border-white/10 bg-white/5 p-4">
+          <div key={`${item.title}-${item.detail}`} className="rounded-[22px] border border-slate-200 bg-white p-4">
             <div className="flex items-start justify-between gap-3">
-              <div className="text-sm font-medium text-white">{item.title}</div>
+              <div className="text-sm font-medium text-slate-900">{item.title}</div>
               {item.tag ? (
-                <span className="rounded-full bg-white/8 px-3 py-1 text-[11px] font-medium text-slate-200">
+                <span className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-medium text-slate-700">
                   {item.tag}
                 </span>
               ) : null}
@@ -440,21 +485,21 @@ function OpsCards({
 }) {
   const toneClassName =
     tone === "emerald"
-      ? "bg-emerald-400/10 text-emerald-50"
+      ? "bg-emerald-100 text-emerald-900"
       : tone === "amber"
-        ? "bg-amber-400/10 text-amber-50"
+        ? "bg-amber-100 text-amber-900"
         : tone === "violet"
-          ? "bg-violet-400/10 text-violet-50"
-          : "bg-cyan-400/10 text-cyan-50"
+          ? "bg-violet-100 text-violet-900"
+          : "bg-cyan-100 text-cyan-900"
 
   return (
     <Surface>
       <SectionHeader eyebrow={eyebrow} title={title} description={description} />
       <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {items.map((item) => (
-          <div key={item.label} className="rounded-[22px] border border-white/10 bg-white/5 p-4">
-            <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">{item.label}</div>
-            <div className="mt-2 text-2xl font-semibold text-white">{item.value}</div>
+          <div key={item.label} className="rounded-[22px] border border-slate-200 bg-white p-4">
+            <div className="text-[11px] uppercase tracking-[0.22em] text-slate-400">{item.label}</div>
+            <div className="mt-2 text-2xl font-semibold text-slate-900">{item.value}</div>
             <div className={cn("mt-4 rounded-[18px] px-4 py-3 text-sm", toneClassName)}>{item.note}</div>
           </div>
         ))}
@@ -468,6 +513,8 @@ type AssistantState = {
   agent?: AgentName
   route?: string
 }
+
+type AlertWorkflowState = "New" | "Acknowledged" | "Escalated"
 
 type SimulatedReply = {
   agent: AgentName
@@ -529,6 +576,66 @@ function inferReportSummary(category: string, patient: string) {
   }
 }
 
+function clinicalAction(patient: PatientRecord) {
+  if (patient.medications.includes("Warfarin") && patient.medications.includes("Aspirin")) {
+    return "Review bleed-risk medication conflict"
+  }
+  if (patient.vitals.spo2Pct <= 90) return "Review oxygen stabilization now"
+  if (patient.vitals.systolicMmHg <= 92) return "Review pressure support and ICU pathway"
+  if (patient.status === "Critical") return "Review ICU transfer decision"
+  return "Review next best action"
+}
+
+function patientSignalBadges(patient: PatientRecord) {
+  const items: string[] = []
+  if (patient.vitals.spo2Pct <= 92) items.push(`SpO2 ↓ ${patient.vitals.spo2Pct}%`)
+  if (patient.vitals.systolicMmHg <= 95) items.push(`BP ↓ ${patient.vitals.systolicMmHg}/${patient.vitals.diastolicMmHg}`)
+  if (patient.vitals.temperatureC >= 38) items.push(`Fever ↑ ${patient.vitals.temperatureC.toFixed(1)}°C`)
+  const flaggedLab = patient.labReports.find((report) => report.status === "Critical" || report.status === "High")
+  if (flaggedLab) items.push(`${flaggedLab.label} ${flaggedLab.value}`)
+  if (!items.length) items.push(patient.summary)
+  return items.slice(0, 3)
+}
+
+function patientDrivers(patient: PatientRecord) {
+  const drivers = patientSignalBadges(patient)
+  const trendNote =
+    patient.trends.risk.at(-1)! > patient.trends.risk[0]
+      ? `Trend: worsening over ${patient.trends.risk.length} checks`
+      : "Trend: stable in the current window"
+  return [...drivers, trendNote].slice(0, 4)
+}
+
+function riskBarClass(score: number) {
+  if (score >= 80) return "bg-rose-500"
+  if (score >= 60) return "bg-amber-500"
+  if (score >= 35) return "bg-cyan-500"
+  return "bg-emerald-500"
+}
+
+function alertClusterName(alert: IntelligenceAlert) {
+  const text = `${alert.title} ${alert.description} ${alert.tag}`.toLowerCase()
+  if (text.includes("oxygen") || text.includes("spo2")) return "Oxygen Alerts"
+  if (text.includes("sepsis")) return "Sepsis Alerts"
+  if (text.includes("drug") || text.includes("medication") || text.includes("warfarin") || text.includes("aspirin")) {
+    return "Drug Conflicts"
+  }
+  if (text.includes("icu") || text.includes("capacity")) return "ICU Queue"
+  return "Critical Reviews"
+}
+
+function resolveAlertPatientId(alert: IntelligenceAlert) {
+  const text = `${alert.title} ${alert.description}`.toLowerCase()
+  return patients.find((patient) => text.includes(patient.firstName.toLowerCase()) || text.includes(patient.lastName.toLowerCase()))?.id
+}
+
+function aggregateAlertState(alertIds: string[], alertStates: Record<string, AlertWorkflowState>) {
+  const states = alertIds.map((id) => alertStates[id] ?? "New")
+  if (states.includes("Escalated")) return "Escalated"
+  if (states.every((state) => state === "Acknowledged")) return "Acknowledged"
+  return "New"
+}
+
 function ReportUploadPanel({
   selectedPatient,
   reports,
@@ -552,7 +659,7 @@ function ReportUploadPanel({
         <button
           type="button"
           onClick={() => inputRef.current?.click()}
-          className="rounded-[24px] border border-dashed border-cyan-300/30 bg-cyan-400/8 p-6 text-left transition hover:border-cyan-200/50 hover:bg-cyan-400/12"
+          className="rounded-[24px] border border-dashed border-cyan-200 bg-cyan-50 p-6 text-left transition hover:border-cyan-300 hover:bg-cyan-100"
         >
           <input
             ref={inputRef}
@@ -566,15 +673,15 @@ function ReportUploadPanel({
             }}
           />
           <div className="flex items-start gap-4">
-            <div className="grid h-12 w-12 place-items-center rounded-[18px] bg-cyan-300 text-slate-950">
+            <div className="grid h-12 w-12 place-items-center rounded-[18px] bg-cyan-600 text-white">
               <FileUp className="h-5 w-5" />
             </div>
             <div>
-              <div className="text-lg font-semibold text-white">Drop in or select reports</div>
-              <div className="mt-2 text-sm leading-6 text-slate-300">
+              <div className="text-lg font-semibold text-slate-900">Drop in or select reports</div>
+              <div className="mt-2 text-sm leading-6 text-slate-600">
                 Current patient: {patientLabel(selectedPatient)}. Accepted formats include PDF, image, DOCX, and CSV.
               </div>
-              <div className="mt-4 inline-flex rounded-full bg-white/8 px-3 py-2 text-xs font-medium text-slate-200">
+              <div className="mt-4 inline-flex rounded-full bg-slate-100 px-3 py-2 text-xs font-medium text-slate-700">
                 AI extracts labs, notes, medication clues, and summary updates automatically
               </div>
             </div>
@@ -583,14 +690,14 @@ function ReportUploadPanel({
         <div className="space-y-3">
           {patientReports.length ? (
             patientReports.map((report) => (
-              <div key={report.id} className="rounded-[22px] border border-white/10 bg-white/5 p-4">
+              <div key={report.id} className="rounded-[22px] border border-slate-200 bg-white p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-start gap-3">
-                    <div className="grid h-10 w-10 place-items-center rounded-[16px] bg-white/8 text-slate-200">
+                    <div className="grid h-10 w-10 place-items-center rounded-[16px] bg-slate-100 text-slate-700">
                       <FileText className="h-4 w-4" />
                     </div>
                     <div>
-                      <div className="text-sm font-medium text-white">{report.name}</div>
+                      <div className="text-sm font-medium text-slate-900">{report.name}</div>
                       <div className="mt-1 text-xs text-slate-400">
                         {report.category} • {report.size} • {report.uploadedAt}
                       </div>
@@ -599,7 +706,7 @@ function ReportUploadPanel({
                   <span
                     className={cn(
                       "rounded-full px-3 py-1 text-xs font-medium",
-                      report.status === "Indexed" ? "bg-emerald-400/15 text-emerald-100" : "bg-amber-400/15 text-amber-100",
+                      report.status === "Indexed" ? "bg-emerald-100 text-emerald-900" : "bg-amber-100 text-amber-900",
                     )}
                   >
                     {report.status}
@@ -609,7 +716,7 @@ function ReportUploadPanel({
               </div>
             ))
           ) : (
-            <div className="rounded-[22px] border border-white/10 bg-white/5 p-5 text-sm leading-6 text-slate-400">
+            <div className="rounded-[22px] border border-slate-200 bg-white p-5 text-sm leading-6 text-slate-400">
               No reports uploaded yet for {patientLabel(selectedPatient)}. Upload a report to simulate extraction and agent routing.
             </div>
           )}
@@ -639,10 +746,10 @@ function SourceMappingPanel({
       />
       <div className="mt-5 space-y-4">
         {items.map((item) => (
-          <div key={item.source} className="rounded-[24px] border border-white/10 bg-white/5 p-5">
+          <div key={item.source} className="rounded-[24px] border border-slate-200 bg-white p-5">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
               <div>
-                <div className="text-lg font-semibold text-white">{item.source}</div>
+                <div className="text-lg font-semibold text-slate-900">{item.source}</div>
                 <div className="mt-2 text-sm leading-6 text-slate-400">{item.ingestion}</div>
               </div>
               <div className="flex flex-wrap gap-2">
@@ -652,21 +759,21 @@ function SourceMappingPanel({
               </div>
             </div>
             <div className="mt-5 grid gap-4 xl:grid-cols-2">
-              <div className="rounded-[20px] border border-white/10 bg-slate-950/35 p-4">
-                <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">What we derive</div>
+              <div className="rounded-[20px] border border-slate-200 bg-slate-50 p-4">
+                <div className="text-[11px] uppercase tracking-[0.22em] text-slate-400">What we derive</div>
                 <div className="mt-3 space-y-2">
                   {item.outputs.map((output) => (
-                    <div key={output} className="text-sm leading-6 text-slate-300">
+                    <div key={output} className="text-sm leading-6 text-slate-600">
                       - {output}
                     </div>
                   ))}
                 </div>
               </div>
-              <div className="rounded-[20px] border border-white/10 bg-slate-950/35 p-4">
-                <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">Where it shows up</div>
+              <div className="rounded-[20px] border border-slate-200 bg-slate-50 p-4">
+                <div className="text-[11px] uppercase tracking-[0.22em] text-slate-400">Where it shows up</div>
                 <div className="mt-3 flex flex-wrap gap-2">
                   {item.ui.map((surface) => (
-                    <span key={surface} className="rounded-full bg-white/8 px-3 py-2 text-xs font-medium text-slate-200">
+                    <span key={surface} className="rounded-full bg-slate-100 px-3 py-2 text-xs font-medium text-slate-700">
                       {surface}
                     </span>
                   ))}
@@ -702,10 +809,10 @@ function DashboardToggleChart({
   const item = config[selected]
 
   return (
-    <Surface className="mt-6">
+    <div className="w-full">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <div className="text-sm font-medium text-white">{item.title}</div>
+          <div className="text-sm font-medium text-slate-900">{item.title}</div>
           <div className="mt-1 text-sm text-slate-400">{item.subtitle}</div>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -724,8 +831,8 @@ function DashboardToggleChart({
               className={cn(
                 "rounded-full px-3 py-2 text-xs font-medium transition",
                 selected === key
-                  ? "bg-cyan-300 text-slate-950"
-                  : "border border-white/10 bg-white/5 text-slate-300 hover:border-cyan-300/30 hover:text-white",
+                  ? "bg-cyan-600 text-white"
+                  : "border border-slate-200 bg-white text-slate-600 hover:border-cyan-200 hover:text-slate-900",
               )}
             >
               {label}
@@ -734,12 +841,12 @@ function DashboardToggleChart({
         </div>
       </div>
       <div className="mt-5 grid gap-4 xl:grid-cols-[0.28fr_0.72fr]">
-        <div className="rounded-[22px] border border-white/10 bg-slate-950/45 p-4">
-          <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">Selected signal</div>
-          <div className="mt-2 text-3xl font-semibold text-white">{item.current}</div>
+        <div className="rounded-[22px] border border-slate-200 bg-slate-50 p-4">
+          <div className="text-[11px] uppercase tracking-[0.22em] text-slate-400">Selected signal</div>
+          <div className="mt-2 text-3xl font-semibold text-slate-900">{item.current}</div>
           <div className="mt-2 text-sm leading-6 text-slate-400">{item.note}</div>
         </div>
-        <div className="h-64 rounded-[22px] border border-white/10 bg-white/5 p-4">
+        <div className="h-64 rounded-[22px] border border-slate-200 bg-white p-4">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={item.data}>
               <CartesianGrid stroke="rgba(148,163,184,0.12)" vertical={false} />
@@ -747,10 +854,10 @@ function DashboardToggleChart({
               <YAxis tick={{ fill: "#94a3b8", fontSize: 12 }} axisLine={false} tickLine={false} />
               <Tooltip
                 contentStyle={{
-                  background: "rgba(2, 6, 23, 0.95)",
-                  border: "1px solid rgba(255,255,255,0.08)",
+                  background: "#ffffff",
+                  border: "1px solid rgba(0,0,0,0.1)",
                   borderRadius: 16,
-                  color: "#e2e8f0",
+                  color: "#0f172a",
                 }}
               />
               <Bar dataKey="value" fill={item.color} radius={[10, 10, 0, 0]} />
@@ -758,7 +865,7 @@ function DashboardToggleChart({
           </ResponsiveContainer>
         </div>
       </div>
-    </Surface>
+    </div>
   )
 }
 
@@ -783,6 +890,170 @@ function trendDirection(values: number[]) {
 
 function bulletBlock(title: string, items: string[]) {
   return `${title}\n${items.map((item) => `- ${item}`).join("\n")}`
+}
+
+function contextualPrompts(slug: PageSlug, patient: PatientRecord) {
+  const name = patientLabel(patient)
+
+  switch (slug) {
+    case "dashboard":
+      return [
+        "Show all ICU candidates",
+        `Explain ${name} deterioration`,
+        "List drug conflicts today",
+        "Give me the next best action",
+      ]
+    case "patients":
+      return [
+        `Summarize ${name}`,
+        `Show latest vitals for ${name}`,
+        `Compare previous state for ${name}`,
+        `What should happen next for ${name}?`,
+      ]
+    case "alerts":
+      return [
+        "Which alerts need escalation first?",
+        `Why is ${name} on the escalation queue?`,
+        "Group oxygen alerts",
+        "Show open bedside actions",
+      ]
+    case "doctor-agent":
+      return [
+        `What is the leading diagnosis for ${name}?`,
+        `Why is the model high risk for ${name}?`,
+        `Show lab drivers for ${name}`,
+        "What differentials were considered?",
+      ]
+    case "nurse-agent":
+      return [
+        `Show monitoring summary for ${name}`,
+        `Is ${name} oxygen stabilizing?`,
+        `What bedside action is next for ${name}?`,
+        "List patients needing immediate reassessment",
+      ]
+    case "drug-agent":
+      return [
+        `Check medication conflicts for ${name}`,
+        `Show allergy risks for ${name}`,
+        "List drug conflicts today",
+        "Which medications need review now?",
+      ]
+    case "admin-agent":
+      return [
+        "Show ICU queue priority",
+        "What is current hospital load?",
+        "Which patients need transfer review?",
+        "Summarize staffing pressure",
+      ]
+    case "ai-insights":
+    case "predictions":
+    case "model-insights":
+      return [
+        `Why is ${name} high risk?`,
+        "Explain model confidence",
+        `Show top drivers for ${name}`,
+        "Compare current and previous prediction state",
+      ]
+    default:
+      return [
+        `Summarize ${name}`,
+        "Show all ICU candidates",
+        "List drug conflicts today",
+        "Give me the next best action",
+      ]
+  }
+}
+
+function buildPagePulse(slug: PageSlug, patient: PatientRecord): SimulatedReply {
+  const name = patientLabel(patient)
+  const prompts = contextualPrompts(slug, patient)
+
+  switch (slug) {
+    case "dashboard":
+      return {
+        agent: "Doctor Agent",
+        route: "Command center pulse",
+        body: [
+          bulletBlock("Live command brief", [
+            `${name} remains the active focus with ${patient.riskScore}% predicted deterioration risk.`,
+            `${clinicalAction(patient)} is the top recommendation from the current multi-agent simulation.`,
+          ]),
+          bulletBlock("Fast actions ready", prompts.slice(0, 3)),
+        ].join("\n\n"),
+      }
+    case "alerts":
+      return {
+        agent: "Admin Agent",
+        route: "Alert triage pulse",
+        body: [
+          bulletBlock("Alert queue brief", [
+            "The alert board is grouped and ready for acknowledge, assign, and escalate actions.",
+            `${name} is one of the key cases to keep in the active escalation loop.`,
+          ]),
+          bulletBlock("Fast actions ready", prompts.slice(0, 3)),
+        ].join("\n\n"),
+      }
+    case "patients":
+      return {
+        agent: "Doctor Agent",
+        route: "Patient workspace pulse",
+        body: [
+          bulletBlock("Patient workspace brief", [
+            `${name} is loaded into the clinical workspace with diagnosis, vitals, medications, and timeline context.`,
+            "You can ask for summaries, explainability, trend comparison, or next-step guidance directly from this page.",
+          ]),
+          bulletBlock("Fast actions ready", prompts.slice(0, 3)),
+        ].join("\n\n"),
+      }
+    case "drug-agent":
+      return {
+        agent: "Drug Agent",
+        route: "Medication safety pulse",
+        body: [
+          bulletBlock("Medication safety brief", [
+            "Drug safety simulation is active with allergy guards, interaction checks, and dosage review messaging.",
+            `Use ${name} to demo patient-specific medication review in the frontend.`,
+          ]),
+          bulletBlock("Fast actions ready", prompts.slice(0, 3)),
+        ].join("\n\n"),
+      }
+    case "nurse-agent":
+      return {
+        agent: "Nurse Agent",
+        route: "Monitoring pulse",
+        body: [
+          bulletBlock("Bedside monitoring brief", [
+            "Telemetry simulation is active with oxygen, blood pressure, temperature, and trend monitoring language.",
+            `${name} is the best case to demo bedside reassessment and oxygen escalation.`,
+          ]),
+          bulletBlock("Fast actions ready", prompts.slice(0, 3)),
+        ].join("\n\n"),
+      }
+    case "admin-agent":
+      return {
+        agent: "Admin Agent",
+        route: "Operations pulse",
+        body: [
+          bulletBlock("Operations brief", [
+            "Hospital flow simulation is active with ICU queue, staffing pressure, and bed orchestration messaging.",
+            `${name} can be used to demonstrate transfer priority and escalation routing.`,
+          ]),
+          bulletBlock("Fast actions ready", prompts.slice(0, 3)),
+        ].join("\n\n"),
+      }
+    default:
+      return {
+        agent: "Doctor Agent",
+        route: "Assistant pulse",
+        body: [
+          bulletBlock("Frontend AI brief", [
+            `The assistant is running in frontend-only simulation mode for ${name}.`,
+            "Prompts, route selection, streaming states, and follow-up messages are all demo-ready without backend calls.",
+          ]),
+          bulletBlock("Fast actions ready", prompts.slice(0, 3)),
+        ].join("\n\n"),
+      }
+  }
 }
 
 function buildAgentReply(input: string, patient: PatientRecord): SimulatedReply {
@@ -1028,17 +1299,17 @@ function MetricGrid({ items }: { items: MetricCard[] }) {
     <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
       {items.map((item) => (
         <Surface key={item.id} className={cn("bg-gradient-to-br", toneClass(item.tone))}>
-          <div className="rounded-[22px] bg-slate-950/72 p-5">
+          <div className="rounded-[22px] bg-slate-50/72 p-5">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <div className="text-sm font-medium text-slate-200">{item.label}</div>
-                <div className="mt-3 text-3xl font-semibold text-white">{item.value}</div>
+                <div className="text-sm font-medium text-slate-700">{item.label}</div>
+                <div className="mt-3 text-3xl font-semibold text-slate-900">{item.value}</div>
               </div>
-              <span className="rounded-full bg-white/8 px-3 py-1 text-xs font-medium text-slate-200">
+              <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
                 {item.delta}
               </span>
             </div>
-            <p className="mt-4 text-sm leading-6 text-slate-300">{item.note}</p>
+            <p className="mt-4 text-sm leading-6 text-slate-600">{item.note}</p>
           </div>
         </Surface>
       ))}
@@ -1056,47 +1327,74 @@ function PatientTable({
   onSelect: (id: string) => void
 }) {
   return (
-    <div className="overflow-hidden rounded-[24px] border border-white/10">
-      <div className="grid grid-cols-[1.45fr_0.5fr_0.85fr_0.6fr_0.8fr_1.3fr] gap-3 border-b border-white/10 bg-white/5 px-4 py-3 text-[11px] uppercase tracking-[0.22em] text-slate-500">
-        <span>Patient</span>
-        <span>Age</span>
-        <span>Status</span>
-        <span>Risk</span>
-        <span>Updated</span>
-        <span>Assigned insight</span>
-      </div>
-      <div className="divide-y divide-white/8">
+    <div className="space-y-3">
+      {rows.length === 0 ? (
+        <div className="rounded-[24px] border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm text-emerald-900">
+          No critical alerts right now. System stable across all wards.
+        </div>
+      ) : null}
+      <div className="space-y-3">
         {rows.map((patient) => (
-          <button
+          <div
             key={patient.id}
-            type="button"
-            onClick={() => startTransition(() => onSelect(patient.id))}
             className={cn(
-              "grid w-full grid-cols-[1.45fr_0.5fr_0.85fr_0.6fr_0.8fr_1.3fr] gap-3 px-4 py-4 text-left transition hover:bg-white/5",
-              patient.id === selectedId && "bg-cyan-400/10",
+              "rounded-[24px] border bg-white p-4 transition",
+              patient.id === selectedId ? "border-cyan-200 shadow-sm" : "border-slate-200",
             )}
           >
-            <div>
-              <div className="font-medium text-white">
-                {patient.firstName} {patient.lastName}
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="text-lg font-semibold text-slate-900">
+                    {patient.firstName} {patient.lastName}
+                  </div>
+                  <span className={cn("rounded-full px-3 py-1 text-xs font-semibold", statusClass(patient.status))}>
+                    {patient.status.toUpperCase()}
+                  </span>
+                  <span className="text-sm font-medium text-slate-500">{patient.riskScore}% risk</span>
+                </div>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {patientSignalBadges(patient).map((signal) => (
+                    <span
+                      key={`${patient.id}-${signal}`}
+                      className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-700"
+                    >
+                      {signal}
+                    </span>
+                  ))}
+                </div>
+                <div className="mt-3 text-sm text-slate-600">{clinicalAction(patient)}</div>
+                <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100">
+                  <div className={cn("h-full rounded-full", riskBarClass(patient.riskScore))} style={{ width: `${patient.riskScore}%` }} />
+                </div>
+                <div className="mt-2 flex items-center gap-2 text-xs text-slate-500">
+                  <span className="inline-flex h-2 w-2 animate-pulse rounded-full bg-emerald-400" />
+                  <span>Updated {patient.lastUpdated}</span>
+                  <span>•</span>
+                  <span>
+                    {patient.mrn} • {patient.ward} • {patient.room}
+                  </span>
+                </div>
               </div>
-              <div className="mt-1 text-xs text-slate-400">
-                {patient.mrn} • {patient.ward}
+              <div className="flex shrink-0 flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="rounded-full border-slate-200 bg-white text-slate-700"
+                  onClick={() => startTransition(() => onSelect(patient.id))}
+                >
+                  Review patient
+                </Button>
+                <Button
+                  type="button"
+                  className="rounded-full bg-slate-900 text-white hover:bg-slate-800"
+                  onClick={() => startTransition(() => onSelect(patient.id))}
+                >
+                  {clinicalAction(patient)}
+                </Button>
               </div>
             </div>
-            <div className="text-sm text-slate-300">{patient.age}</div>
-            <div>
-              <span className={cn("rounded-full px-3 py-1 text-xs font-medium", statusClass(patient.status))}>
-                {patient.status}
-              </span>
-            </div>
-            <div className="text-sm font-semibold text-white">{patient.riskScore}%</div>
-            <div className="text-sm text-slate-300">{patient.lastUpdated}</div>
-            <div className="space-y-1">
-              <AgentPill agent={patient.assignedAgent} />
-              <div className="text-xs leading-5 text-slate-400">{patient.summary}</div>
-            </div>
-          </button>
+          </div>
         ))}
       </div>
     </div>
@@ -1111,18 +1409,18 @@ function InsightGrid({ items }: { items: InsightCard[] }) {
           <div className={cn("absolute inset-x-5 top-0 h-1 rounded-b-full", accentBar(item.accent))} />
           <div className="flex items-start justify-between gap-3">
             <div>
-              <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">{item.type}</div>
-              <h3 className="mt-2 text-lg font-semibold text-white">{item.title}</h3>
+              <div className="text-[11px] uppercase tracking-[0.22em] text-slate-400">{item.type}</div>
+              <h3 className="mt-2 text-lg font-semibold text-slate-900">{item.title}</h3>
             </div>
-            <span className="rounded-full bg-white/8 px-3 py-1 text-xs font-medium text-slate-200">
+            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
               {formatConfidence(item.confidence)}
             </span>
           </div>
-          <p className="mt-3 text-sm font-medium text-slate-200">{item.summary}</p>
+          <p className="mt-3 text-sm font-medium text-slate-700">{item.summary}</p>
           <p className="mt-2 text-sm leading-6 text-slate-400">{item.explanation}</p>
           <div className="mt-4 flex items-center justify-between gap-3">
             <AgentPill agent={item.agent} />
-            <span className="text-[11px] uppercase tracking-[0.2em] text-slate-500">WHY surfaced</span>
+            <span className="text-[11px] uppercase tracking-[0.2em] text-slate-400">WHY surfaced</span>
           </div>
         </Surface>
       ))}
@@ -1135,6 +1433,7 @@ function ChatPanel({
   draft,
   setDraft,
   onSend,
+  onQuickPrompt,
   onReset,
   selectedPatient,
   assistantState,
@@ -1144,6 +1443,7 @@ function ChatPanel({
   draft: string
   setDraft: (value: string) => void
   onSend: () => void
+  onQuickPrompt: (prompt: string) => void
   onReset: () => void
   selectedPatient: PatientRecord
   assistantState: AssistantState
@@ -1165,16 +1465,16 @@ function ChatPanel({
         description="Ask about diagnosis, vitals, medication safety, hospital operations, predictions, or clinical notes."
       />
       <div className={cn("mt-5 grid gap-3", compact ? "grid-cols-1" : "md:grid-cols-3")}>
-        <div className="rounded-[22px] border border-white/10 bg-white/5 p-4">
-          <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">Active patient</div>
-          <div className="mt-2 text-sm font-medium text-white">{patientLabel(selectedPatient)}</div>
+        <div className="rounded-[22px] border border-slate-200 bg-white p-4">
+          <div className="text-[11px] uppercase tracking-[0.22em] text-slate-400">Active patient</div>
+          <div className="mt-2 text-sm font-medium text-slate-900">{patientLabel(selectedPatient)}</div>
           <div className="mt-1 text-xs text-slate-400">
             {selectedPatient.status} • {selectedPatient.riskScore}% risk • {selectedPatient.room}
           </div>
         </div>
-        <div className="rounded-[22px] border border-white/10 bg-white/5 p-4">
-          <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">Assistant state</div>
-          <div className="mt-2 text-sm font-medium text-white">
+        <div className="rounded-[22px] border border-slate-200 bg-white p-4">
+          <div className="text-[11px] uppercase tracking-[0.22em] text-slate-400">Assistant state</div>
+          <div className="mt-2 text-sm font-medium text-slate-900">
             {assistantState.phase === "idle"
               ? "Ready for a prompt"
               : assistantState.phase === "routing"
@@ -1186,9 +1486,9 @@ function ChatPanel({
           </div>
         </div>
         {!compact ? (
-          <div className="rounded-[22px] border border-white/10 bg-white/5 p-4">
-            <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">Conversation mode</div>
-            <div className="mt-2 text-sm font-medium text-white">ChatGPT-style simulation</div>
+          <div className="rounded-[22px] border border-slate-200 bg-white p-4">
+            <div className="text-[11px] uppercase tracking-[0.22em] text-slate-400">Conversation mode</div>
+            <div className="mt-2 text-sm font-medium text-slate-900">ChatGPT-style simulation</div>
             <div className="mt-1 text-xs text-slate-400">
               Streaming replies, route-aware agents, and patient-context answers are enabled.
             </div>
@@ -1201,13 +1501,15 @@ function ChatPanel({
             key={message.id}
             className={cn(
               "max-w-[88%] rounded-[24px] px-4 py-3",
-              message.role === "user" ? "ml-auto bg-cyan-400/15 text-cyan-50" : "bg-white/7 text-slate-100",
+              message.role === "user"
+                ? "ml-auto border border-cyan-200 bg-cyan-50 text-cyan-950"
+                : "border border-slate-200 bg-slate-50 text-slate-900",
             )}
           >
             <div className="mb-2 flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-[0.2em] text-slate-400">
               {message.agent ? <span>{message.agent}</span> : null}
               {message.route ? (
-                <span className="rounded-full bg-white/10 px-2 py-1 normal-case tracking-normal text-slate-300">
+                <span className="rounded-full bg-white px-2 py-1 normal-case tracking-normal text-slate-600 ring-1 ring-slate-200">
                   {message.route}
                 </span>
               ) : null}
@@ -1216,16 +1518,16 @@ function ChatPanel({
           </div>
         ))}
         {assistantState.phase !== "idle" ? (
-          <div className="max-w-[88%] rounded-[24px] bg-white/7 px-4 py-3 text-slate-100">
+          <div className="max-w-[88%] rounded-[24px] border border-slate-200 bg-slate-50 px-4 py-3 text-slate-900">
             <div className="mb-2 flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-[0.2em] text-slate-400">
               <span>{assistantState.agent ?? "Hospital OS"}</span>
               {assistantState.route ? (
-                <span className="rounded-full bg-white/10 px-2 py-1 normal-case tracking-normal text-slate-300">
+                <span className="rounded-full bg-white px-2 py-1 normal-case tracking-normal text-slate-600 ring-1 ring-slate-200">
                   {assistantState.route}
                 </span>
               ) : null}
             </div>
-            <div className="flex items-center gap-2 text-sm text-slate-300">
+            <div className="flex items-center gap-2 text-sm text-slate-700">
               <span className="h-2 w-2 animate-pulse rounded-full bg-cyan-300" />
               <span className="h-2 w-2 animate-pulse rounded-full bg-cyan-300 [animation-delay:120ms]" />
               <span className="h-2 w-2 animate-pulse rounded-full bg-cyan-300 [animation-delay:240ms]" />
@@ -1237,6 +1539,12 @@ function ChatPanel({
         ) : null}
       </div>
       <div className="mt-6 space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
+            Suggested queries
+          </div>
+          <div className="text-xs text-slate-500">One tap runs the request immediately</div>
+        </div>
         <Textarea
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
@@ -1248,7 +1556,7 @@ function ChatPanel({
           }}
           disabled={assistantState.phase !== "idle"}
           className={cn(
-            "rounded-[24px] border-white/10 bg-slate-950/70 px-4 py-3 text-slate-100",
+            "rounded-[24px] border-slate-200 bg-slate-50 px-4 py-3 text-slate-900 placeholder:text-slate-400",
             compact ? "min-h-[84px]" : "min-h-[120px]",
           )}
           placeholder="Ask anything: summarize the patient, show vitals, explain the model, compare ICU demand, or inspect drug safety."
@@ -1258,11 +1566,11 @@ function ChatPanel({
             <button
               key={prompt}
               type="button"
-              onClick={() => setDraft(prompt)}
+              onClick={() => onQuickPrompt(prompt)}
               disabled={assistantState.phase !== "idle"}
-              className="rounded-full border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-300 transition hover:border-cyan-300/30 hover:text-white"
+              className="rounded-full border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600 transition hover:border-cyan-200 hover:text-slate-900"
             >
-              {prompt}
+              Run: {prompt}
             </button>
           ))}
         </div>
@@ -1272,7 +1580,7 @@ function ChatPanel({
             variant="ghost"
             onClick={onReset}
             className={cn(
-              "rounded-full border border-white/10 bg-white/5 px-4 text-slate-200 hover:bg-white/10",
+              "rounded-full border border-slate-200 bg-white px-4 text-slate-700 hover:bg-white/10",
               compact && "hidden",
             )}
           >
@@ -1291,6 +1599,146 @@ function ChatPanel({
   )
 }
 
+function AssistantDock({
+  slug,
+  selectedPatient,
+  messages,
+  draft,
+  setDraft,
+  onSend,
+  onQuickPrompt,
+  assistantState,
+}: {
+  slug: PageSlug
+  selectedPatient: PatientRecord
+  messages: ChatMessage[]
+  draft: string
+  setDraft: (value: string) => void
+  onSend: () => void
+  onQuickPrompt: (prompt: string) => void
+  assistantState: AssistantState
+}) {
+  const prompts = contextualPrompts(slug, selectedPatient)
+  const recentMessages = messages.slice(-3)
+
+  return (
+    <Surface className="border-cyan-200 bg-gradient-to-br from-cyan-50 via-white to-emerald-50">
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+        <div>
+          <div className="flex items-center gap-3 text-[11px] font-semibold uppercase tracking-[0.26em] text-cyan-700">
+            <span className="inline-flex h-2.5 w-2.5 animate-pulse rounded-full bg-cyan-500" />
+            Frontend AI Command Dock
+          </div>
+          <h3 className="mt-2 text-2xl font-semibold text-slate-950">
+            Multi-agent chat is simulated and ready on this page
+          </h3>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
+            This dock keeps the assistant feeling live across the frontend with route-aware prompts, streaming states,
+            and page-specific responses for {patientLabel(selectedPatient)}.
+          </p>
+        </div>
+        <Link
+          href="/chat-assistant"
+          className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-cyan-200 hover:text-slate-950"
+        >
+          <MessageSquare className="h-4 w-4" />
+          Open full chat
+        </Link>
+      </div>
+
+      <div className="mt-5 grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
+        <div className="space-y-4">
+          <div className="rounded-[22px] border border-slate-200 bg-white p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <div className="text-[11px] uppercase tracking-[0.22em] text-slate-400">Live status</div>
+                <div className="mt-2 text-sm font-medium text-slate-900">
+                  {assistantState.phase === "idle"
+                    ? "Ready for prompt execution"
+                    : assistantState.phase === "routing"
+                      ? "Routing to the best agent"
+                      : "Generating clinical response"}
+                </div>
+              </div>
+              <span className="inline-flex h-3 w-3 animate-pulse rounded-full bg-emerald-400" />
+            </div>
+            <div className="mt-2 text-sm text-slate-500">
+              {assistantState.route ? `${assistantState.agent} • ${assistantState.route}` : "Frontend-only AI simulation active"}
+            </div>
+          </div>
+
+          <div className="rounded-[22px] border border-slate-200 bg-white p-4">
+            <div className="text-[11px] uppercase tracking-[0.22em] text-slate-400">Suggested actions</div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {prompts.map((prompt) => (
+                <Button
+                  key={prompt}
+                  type="button"
+                  variant="outline"
+                  className="rounded-full border-slate-200 bg-white text-slate-700"
+                  onClick={() => onQuickPrompt(prompt)}
+                >
+                  {prompt}
+                </Button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-[22px] border border-slate-200 bg-white p-4">
+          <div className="text-[11px] uppercase tracking-[0.22em] text-slate-400">Recent assistant activity</div>
+          <div className="mt-3 space-y-3">
+            {recentMessages.map((message) => (
+              <div
+                key={message.id}
+                className={cn(
+                  "rounded-[18px] border px-4 py-3 text-sm leading-6",
+                  message.role === "user"
+                    ? "border-cyan-200 bg-cyan-50 text-cyan-950"
+                    : "border-slate-200 bg-slate-50 text-slate-900",
+                )}
+              >
+                <div className="mb-2 flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-slate-400">
+                  <span>{message.role === "user" ? "Clinician" : message.agent ?? "Hospital OS"}</span>
+                  {message.route ? (
+                    <span className="rounded-full bg-white px-2 py-1 normal-case tracking-normal text-slate-600 ring-1 ring-slate-200">
+                      {message.route}
+                    </span>
+                  ) : null}
+                </div>
+                <div className="line-clamp-4 whitespace-pre-wrap">{message.body}</div>
+              </div>
+            ))}
+          </div>
+          <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+            <Textarea
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && !event.shiftKey) {
+                  event.preventDefault()
+                  onSend()
+                }
+              }}
+              disabled={assistantState.phase !== "idle"}
+              className="min-h-[96px] rounded-[20px] border-slate-200 bg-slate-50 text-slate-900 placeholder:text-slate-400"
+              placeholder="Ask the simulated agents anything about this page context."
+            />
+            <Button
+              type="button"
+              onClick={onSend}
+              disabled={assistantState.phase !== "idle"}
+              className="rounded-[20px] bg-slate-900 px-5 text-white hover:bg-slate-800 sm:self-end"
+            >
+              {assistantState.phase === "idle" ? "Run prompt" : "Working..."}
+            </Button>
+          </div>
+        </div>
+      </div>
+    </Surface>
+  )
+}
+
 function LogsView() {
   return (
     <div className="space-y-3">
@@ -1303,19 +1751,19 @@ function LogsView() {
                   className={cn(
                     "rounded-full px-3 py-1 text-xs font-medium",
                     row.level === "Critical"
-                      ? "bg-rose-500/15 text-rose-100"
+                      ? "bg-rose-100 text-rose-900"
                       : row.level === "Warning"
-                        ? "bg-amber-400/15 text-amber-100"
-                        : "bg-cyan-400/15 text-cyan-100",
+                        ? "bg-amber-100 text-amber-900"
+                        : "bg-cyan-100 text-cyan-900",
                   )}
                 >
                   {row.level}
                 </span>
-                <span className="text-[11px] uppercase tracking-[0.22em] text-slate-500">
+                <span className="text-[11px] uppercase tracking-[0.22em] text-slate-400">
                   {row.service}
                 </span>
               </div>
-              <div className="text-lg font-medium text-white">{row.summary}</div>
+              <div className="text-lg font-medium text-slate-900">{row.summary}</div>
               <div className="text-sm leading-6 text-slate-400">{row.detail}</div>
             </div>
             <div className="text-sm text-slate-400">{row.at}</div>
@@ -1326,14 +1774,17 @@ function LogsView() {
   )
 }
 
-export function HospitalWorkbench({ slug }: { slug: PageSlug }) {
+export function HospitalWorkbench({ slug, user }: { slug: PageSlug; user: SessionUser }) {
+  const router = useRouter()
   const meta = pageMeta[slug]
   const [selectedPatientId, setSelectedPatientId] = useState(patients[0]?.id ?? "")
+  const [patientTab, setPatientTab] = useState("overview")
   const [query, setQuery] = useState("")
   const deferredQuery = useDeferredValue(query)
   const [messages, setMessages] = useState<ChatMessage[]>(chatSeed)
   const [draft, setDraft] = useState("Why is patient critical?")
   const [assistantState, setAssistantState] = useState<AssistantState>({ phase: "idle" })
+  const [alertStates, setAlertStates] = useState<Record<string, AlertWorkflowState>>({})
   const [dashboardMetricView, setDashboardMetricView] = useState<DashboardMetricKey>("risk")
   const [uploadedReports, setUploadedReports] = useState<UploadedReport[]>([
     {
@@ -1363,6 +1814,7 @@ export function HospitalWorkbench({ slug }: { slug: PageSlug }) {
   const messageCounter = useRef(chatSeed.length + 1)
   const replyTimers = useRef<number[]>([])
   const reportTimers = useRef<number[]>([])
+  const assistantContextRef = useRef("")
 
   useEffect(() => {
     const updateClock = () =>
@@ -1427,6 +1879,15 @@ export function HospitalWorkbench({ slug }: { slug: PageSlug }) {
     })
   }, [liveAlerts.length])
 
+  const topActionPatients = useMemo(
+    () =>
+      [...patients]
+        .filter((patient) => patient.status === "Critical" || patient.riskScore >= 70)
+        .sort((left, right) => right.riskScore - left.riskScore)
+        .slice(0, 2),
+    [],
+  )
+
   function nextMessageId(prefix: "u" | "a") {
     const id = `${prefix}-${messageCounter.current}`
     messageCounter.current += 1
@@ -1479,8 +1940,8 @@ export function HospitalWorkbench({ slug }: { slug: PageSlug }) {
     setDraft("Why is patient critical?")
   }
 
-  function sendMessage() {
-    const prompt = draft.trim()
+  function queuePrompt(promptText: string) {
+    const prompt = promptText.trim()
     if (!prompt || assistantState.phase !== "idle") return
     const reply = buildAgentReply(prompt, selectedPatient)
     clearReplyTimers()
@@ -1533,28 +1994,78 @@ export function HospitalWorkbench({ slug }: { slug: PageSlug }) {
     })
   }
 
-  const navGroups = groupedNavigation()
+  function sendMessage() {
+    queuePrompt(draft)
+  }
+
+  function sendQuickPrompt(prompt: string) {
+    setDraft(prompt)
+    queuePrompt(prompt)
+  }
+
+  function updateAlertState(ids: string[], nextState: AlertWorkflowState) {
+    setAlertStates((current) => ({
+      ...current,
+      ...Object.fromEntries(ids.map((id) => [id, nextState])),
+    }))
+  }
+
+  useEffect(() => {
+    const contextKey = `${slug}:${selectedPatientId}`
+    if (assistantContextRef.current === contextKey) return
+    assistantContextRef.current = contextKey
+
+    const pulse = buildPagePulse(slug, selectedPatient)
+    setMessages((current) => {
+      if (current.some((message) => message.route === pulse.route && message.body === pulse.body)) {
+        return current
+      }
+
+      return [
+        ...current,
+        {
+          id: nextMessageId("a"),
+          role: "assistant",
+          body: pulse.body,
+          agent: pulse.agent,
+          route: pulse.route,
+        },
+      ]
+    })
+  }, [selectedPatient, selectedPatientId, slug])
+
+  const navGroups = groupedNavigation(user.role)
+  const visibleNavItems = navigationItems.filter((item) => isNavVisible(user.role, item.slug))
+
+  async function handleLogout() {
+    try {
+      await api<{ loggedOut: boolean }>("/api/auth/logout", { method: "POST" })
+    } finally {
+      router.push("/login")
+      router.refresh()
+    }
+  }
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(45,212,191,0.16),transparent_26%),radial-gradient(circle_at_top_right,rgba(14,165,233,0.12),transparent_24%),linear-gradient(180deg,#07111e_0%,#091525_60%,#08111d_100%)] text-white">
+    <div className="min-h-screen bg-[#f3f6f9] text-slate-900">
       <div className="mx-auto flex min-h-screen w-full gap-3 px-2 py-3 lg:px-3 xl:px-4">
         <aside className="hidden w-[280px] shrink-0 xl:block">
-          <div className="sticky top-3 rounded-[32px] border border-white/10 bg-slate-950/75 p-4 shadow-[0_22px_80px_rgba(2,6,23,0.42)] backdrop-blur-xl">
+          <div className="sticky top-3 rounded-[32px] border border-slate-200 bg-white p-4 shadow-sm">
             <div className="flex items-center gap-4">
               <div className="grid h-14 w-14 place-items-center rounded-[22px] bg-gradient-to-br from-emerald-300 to-cyan-300 text-slate-950 shadow-[0_16px_40px_rgba(34,211,238,0.2)]">
                 <span className="text-lg font-bold">AI</span>
               </div>
               <div>
-                <div className="text-lg font-semibold text-white">Hospital OS</div>
+                <div className="text-lg font-semibold text-slate-900">Hospital OS</div>
                 <div className="mt-1 text-sm text-slate-400">Doctor, Nurse, Drug, Admin mesh</div>
               </div>
             </div>
 
-            <div className="mt-6 rounded-[24px] border border-white/10 bg-white/5 p-4">
+            <div className="mt-6 rounded-[24px] border border-slate-200 bg-white p-4">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">System state</div>
-                  <div className="mt-2 text-sm font-medium text-white">Live simulation active</div>
+                  <div className="text-[11px] uppercase tracking-[0.22em] text-slate-400">System state</div>
+                  <div className="mt-2 text-sm font-medium text-slate-900">Live simulation active</div>
                 </div>
                 <span className="h-3 w-3 rounded-full bg-emerald-400 shadow-[0_0_18px_rgba(52,211,153,0.6)]" />
               </div>
@@ -1566,7 +2077,7 @@ export function HospitalWorkbench({ slug }: { slug: PageSlug }) {
             <div className="mt-8 space-y-6">
               {navGroups.map((group) => (
                 <div key={group.label}>
-                  <div className="mb-3 px-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
+                  <div className="mb-3 px-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
                     {group.label}
                   </div>
                   <div className="space-y-1">
@@ -1580,15 +2091,15 @@ export function HospitalWorkbench({ slug }: { slug: PageSlug }) {
                           className={cn(
                             "group flex items-center justify-between rounded-[20px] px-3 py-3 text-sm transition",
                             active
-                              ? "bg-cyan-400/14 text-white ring-1 ring-inset ring-cyan-300/20"
-                              : "text-slate-300 hover:bg-white/5 hover:text-white",
+                              ? "bg-cyan-400/14 text-slate-900 ring-1 ring-inset ring-cyan-200"
+                              : "text-slate-600 hover:bg-white hover:text-slate-900",
                           )}
                         >
                           <span className="flex items-center gap-3">
                             <span
                               className={cn(
                                 "grid h-10 w-10 place-items-center rounded-2xl",
-                                active ? "bg-cyan-400/14 text-cyan-100" : "bg-white/5 text-slate-400",
+                                active ? "bg-cyan-400/14 text-cyan-100" : "bg-white text-slate-400",
                               )}
                             >
                               <Icon className="h-5 w-5" />
@@ -1611,52 +2122,65 @@ export function HospitalWorkbench({ slug }: { slug: PageSlug }) {
         </aside>
 
         <main className="min-w-0 flex-1">
-          <div className="sticky top-3 z-20 rounded-[30px] border border-white/10 bg-slate-950/75 p-3 shadow-[0_18px_70px_rgba(2,6,23,0.4)] backdrop-blur-xl">
+          <div className="sticky top-3 z-20 rounded-[30px] border border-slate-200 bg-white/80 backdrop-blur-md p-3 shadow-sm">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
               <div className="flex items-center gap-3">
                 <button
                   type="button"
                   onClick={() => setNavOpen((open) => !open)}
-                  className="grid h-12 w-12 place-items-center rounded-[18px] border border-white/10 bg-white/5 xl:hidden"
+                  className="grid h-12 w-12 place-items-center rounded-[18px] border border-slate-200 bg-white xl:hidden"
                 >
                   <BarChart3 className="h-5 w-5" />
                 </button>
                 <div>
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-cyan-200/70">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-cyan-600">
                     {meta.eyebrow}
                   </div>
-                  <h1 className="mt-2 text-3xl font-semibold text-white">Hello, Doctor</h1>
+                  <h1 className="mt-2 text-3xl font-semibold text-slate-900">Hello, {user.name}</h1>
+                  <p className="mt-1 text-xs font-medium uppercase tracking-[0.18em] text-violet-500">
+                    {roleGreeting(user.role)}
+                  </p>
                   <p className="mt-1 text-sm text-slate-400">{meta.description}</p>
                 </div>
               </div>
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                 <div className="relative min-w-[260px]">
-                  <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+                  <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                   <Input
                     value={query}
                     onChange={(event) => setQuery(event.target.value)}
                     placeholder="Search patients, rooms, or MRN"
-                    className="h-12 rounded-full border-white/10 bg-white/5 pl-11 text-slate-100"
+                    className="h-12 rounded-full border-slate-200 bg-slate-50 pl-11 text-slate-900"
                   />
                 </div>
-                <div className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-300">
+                <div className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm text-slate-600">
                   {timeLabel}
                 </div>
-                <div className="flex items-center gap-3 rounded-full border border-white/10 bg-white/5 px-3 py-2">
+                <div className="flex items-center gap-3 rounded-full border border-slate-200 bg-white px-3 py-2">
                   <div className="grid h-9 w-9 place-items-center rounded-full bg-gradient-to-br from-cyan-300 to-emerald-300 text-sm font-semibold text-slate-950">
-                    DR
+                    {userInitials(user.name)}
                   </div>
                   <div>
-                    <div className="text-sm font-medium text-white">Dr. Rao</div>
-                    <div className="text-xs text-slate-400">Chief physician</div>
+                    <div className="text-sm font-medium text-slate-900">{user.name}</div>
+                    <div className="text-xs text-slate-400 capitalize">
+                      {user.department ?? user.role}
+                    </div>
                   </div>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => void handleLogout()}
+                  className="grid h-12 w-12 place-items-center rounded-full border border-slate-200 bg-white text-slate-500 transition hover:border-rose-200 hover:text-rose-600"
+                  title="Sign out"
+                >
+                  <LogOut className="h-5 w-5" />
+                </button>
               </div>
             </div>
 
             {navOpen ? (
-              <div className="mt-4 grid gap-2 rounded-[24px] border border-white/10 bg-black/10 p-3 xl:hidden">
-                {navigationItems.map((item) => {
+              <div className="mt-4 grid gap-2 rounded-[24px] border border-slate-200 bg-black/10 p-3 xl:hidden">
+                {visibleNavItems.map((item) => {
                   const Icon = pageIcons[item.slug]
                   return (
                     <Link
@@ -1664,7 +2188,7 @@ export function HospitalWorkbench({ slug }: { slug: PageSlug }) {
                       href={`/${item.slug}`}
                       className={cn(
                         "flex items-center justify-between rounded-[18px] px-3 py-3 text-sm",
-                        item.slug === slug ? "bg-cyan-400/14 text-white" : "bg-white/5 text-slate-300",
+                        item.slug === slug ? "bg-cyan-400/14 text-slate-900" : "bg-white text-slate-600",
                       )}
                     >
                       <span className="flex items-center gap-3">
@@ -1684,6 +2208,36 @@ export function HospitalWorkbench({ slug }: { slug: PageSlug }) {
           </div>
 
           <div className="mt-5 space-y-5 pb-24">
+            {slug === "dashboard" ? (
+              <div className="sticky top-[106px] z-10 rounded-[28px] border border-rose-200 bg-gradient-to-r from-rose-600 via-rose-500 to-orange-500 px-5 py-4 text-white shadow-[0_18px_40px_rgba(225,29,72,0.18)]">
+                <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+                  <div>
+                    <div className="flex items-center gap-3 text-[11px] font-semibold uppercase tracking-[0.28em] text-rose-100">
+                      <span className="inline-flex h-2.5 w-2.5 animate-pulse rounded-full bg-white" />
+                      Action Required
+                    </div>
+                    <div className="mt-2 text-2xl font-semibold">
+                      {topActionPatients.length} critical patients need review in the next 30 seconds
+                    </div>
+                    <div className="mt-1 text-sm text-rose-50/90">
+                      Focus the team on immediate bedside action first, then review passive analytics.
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {topActionPatients.map((patient) => (
+                      <Button
+                        key={patient.id}
+                        type="button"
+                        onClick={() => startTransition(() => setSelectedPatientId(patient.id))}
+                        className="rounded-full bg-white text-rose-700 hover:bg-rose-50"
+                      >
+                        {`Review ${patient.firstName} ${patient.lastName} → ${clinicalAction(patient)}`}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ) : null}
             {renderPage({
               slug,
               meta,
@@ -1696,14 +2250,31 @@ export function HospitalWorkbench({ slug }: { slug: PageSlug }) {
               draft,
               setDraft,
               sendMessage,
+              sendQuickPrompt,
               resetConversation,
               assistantState,
+              alertStates,
+              updateAlertState,
               dashboardMetricView,
               setDashboardMetricView,
               uploadedReports,
               handleReportUpload,
               onSelectPatient: setSelectedPatientId,
+              patientTab,
+              setPatientTab,
             })}
+            {slug !== "chat-assistant" ? (
+              <AssistantDock
+                slug={slug}
+                selectedPatient={selectedPatient}
+                messages={messages}
+                draft={draft}
+                setDraft={setDraft}
+                onSend={sendMessage}
+                onQuickPrompt={sendQuickPrompt}
+                assistantState={assistantState}
+              />
+            ) : null}
           </div>
         </main>
       </div>
@@ -1731,13 +2302,18 @@ function renderPage({
   draft,
   setDraft,
   sendMessage,
+  sendQuickPrompt,
   resetConversation,
   assistantState,
+  alertStates,
+  updateAlertState,
   dashboardMetricView,
   setDashboardMetricView,
   uploadedReports,
   handleReportUpload,
   onSelectPatient,
+  patientTab,
+  setPatientTab,
 }: {
   slug: PageSlug
   meta: (typeof pageMeta)[PageSlug]
@@ -1750,13 +2326,18 @@ function renderPage({
   draft: string
   setDraft: (value: string) => void
   sendMessage: () => void
+  sendQuickPrompt: (prompt: string) => void
   resetConversation: () => void
   assistantState: AssistantState
+  alertStates: Record<string, AlertWorkflowState>
+  updateAlertState: (ids: string[], nextState: AlertWorkflowState) => void
   dashboardMetricView: DashboardMetricKey
   setDashboardMetricView: (value: DashboardMetricKey) => void
   uploadedReports: UploadedReport[]
   handleReportUpload: (files: FileList | null) => void
   onSelectPatient: (id: string) => void
+  patientTab: string
+  setPatientTab: (tab: string) => void
 }) {
   const riskData = factorsToData(predictionSeries.risk)
   const loadData = factorsToData(predictionSeries.hospitalLoad)
@@ -1887,191 +2468,361 @@ function renderPage({
   ]
 
   if (slug === "dashboard") {
+    const criticalPatients = [...patients]
+      .filter((patient) => patient.status === "Critical" || patient.riskScore >= 60)
+      .sort((left, right) => right.riskScore - left.riskScore)
+      .slice(0, 5)
+
+    const decisionQueue = criticalPatients.slice(0, 2)
+
+    const groupedAlerts = Object.values(
+      liveAlerts.reduce(
+        (groups, alert) => {
+          const name = alertClusterName(alert)
+          const current = groups[name] ?? { name, alerts: [] as IntelligenceAlert[] }
+          current.alerts.push(alert)
+          groups[name] = current
+          return groups
+        },
+        {} as Record<string, { name: string; alerts: IntelligenceAlert[] }>,
+      ),
+    )
+      .map((group) => {
+        const ids = group.alerts.map((alert) => alert.id)
+        return {
+          ...group,
+          ids,
+          patientId: resolveAlertPatientId(group.alerts[0]),
+          state: aggregateAlertState(ids, alertStates),
+        }
+      })
+      .sort((left, right) => right.alerts.length - left.alerts.length)
+
+    const selectedDrivers = patientDrivers(selectedPatient)
+    const selectedCriticalLabs = selectedPatient.labReports.filter(
+      (report) => report.status === "Critical" || report.status === "High",
+    )
+
     return (
-      <>
-        <Surface>
-          <div className="grid gap-5 xl:grid-cols-[1.45fr_0.85fr]">
-            <div className="rounded-[24px] bg-gradient-to-br from-cyan-400/12 via-white/5 to-emerald-400/10 p-5">
-              <SectionHeader
-                eyebrow={meta.emphasis}
-                title={`Priority patient: ${selectedPatient.firstName} ${selectedPatient.lastName}`}
-                description={selectedPatient.summary}
-                action={<AgentPill agent={selectedPatient.assignedAgent} />}
-              />
-              <div className="mt-6 grid gap-4 md:grid-cols-4">
-                <SmallMetric label="Heart Rate" value={`${selectedPatient.vitals.heartRateBpm} bpm`} note="Live bedside" />
-                <SmallMetric label="SpO2" value={`${selectedPatient.vitals.spo2Pct}%`} note="Continuous pulse oximetry" />
-                <SmallMetric label="Blood Pressure" value={`${selectedPatient.vitals.systolicMmHg}/${selectedPatient.vitals.diastolicMmHg}`} note="Hemodynamic watch" />
-                <SmallMetric label="AI Decision" value={`${selectedPatient.riskScore}%`} note={selectedPatient.model} />
+      <div className="mx-auto max-w-[1600px] space-y-6 pb-10">
+        <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+          <div className="space-y-6">
+            <Surface className="border-rose-200 bg-gradient-to-br from-rose-50 via-white to-orange-50">
+              <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+                <div>
+                  <div className="flex items-center gap-3 text-[11px] font-semibold uppercase tracking-[0.28em] text-rose-700">
+                    <span className="inline-flex h-2.5 w-2.5 animate-pulse rounded-full bg-rose-500" />
+                    Immediate danger
+                  </div>
+                  <h2 className="mt-3 text-3xl font-semibold text-slate-950">
+                    4 patients require immediate review. 2 meet ICU escalation criteria.
+                  </h2>
+                  <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
+                    Act on the next 30 seconds first, then move into passive analytics. This page is organized around clinical action, not dashboard decoration.
+                  </p>
+                </div>
+                <div className="rounded-[24px] border border-rose-200 bg-white px-4 py-3 text-sm text-slate-700 shadow-sm">
+                  <div className="flex items-center gap-2 font-medium text-slate-900">
+                    <span className="inline-flex h-2.5 w-2.5 animate-pulse rounded-full bg-emerald-400" />
+                    Live telemetry
+                  </div>
+                  <div className="mt-1 text-slate-500">Updated {selectedPatient.lastUpdated}</div>
+                </div>
               </div>
-              <DashboardToggleChart
-                selected={dashboardMetricView}
-                onSelect={setDashboardMetricView}
-                config={dashboardMetricConfig}
-              />
-            </div>
-            <div className="space-y-4">
-              <Surface>
-                <SectionHeader eyebrow="Monitoring timeline" title="Agent event log" description="Compact and readable so a doctor sees the story in seconds." />
-                <div className="mt-5 space-y-4">
-                  {selectedPatient.timeline.map((item) => (
-                    <div key={item} className="flex gap-3">
-                      <span className="mt-2 h-2.5 w-2.5 rounded-full bg-cyan-300" />
-                      <div className="text-sm leading-6 text-slate-300">{item}</div>
+
+              <div className="mt-6 grid gap-4 xl:grid-cols-2">
+                {decisionQueue.map((patient) => (
+                  <div key={patient.id} className="rounded-[24px] border border-rose-200 bg-white p-5 shadow-sm">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="text-lg font-semibold text-slate-900">
+                          {patient.firstName} {patient.lastName}
+                        </div>
+                        <div className="mt-1 text-sm text-slate-500">
+                          {clinicalAction(patient)} • {patient.riskScore}% risk
+                        </div>
+                      </div>
+                      <span className="rounded-full bg-rose-100 px-3 py-1 text-xs font-semibold text-rose-800">
+                        {patient.status}
+                      </span>
                     </div>
-                  ))}
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      {patientSignalBadges(patient).map((signal) => (
+                        <span
+                          key={`${patient.id}-${signal}`}
+                          className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-700"
+                        >
+                          {signal}
+                        </span>
+                      ))}
+                    </div>
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <Button
+                        type="button"
+                        className="rounded-full bg-rose-600 text-white hover:bg-rose-700"
+                        onClick={() => startTransition(() => onSelectPatient(patient.id))}
+                      >
+                        {`Review ${patient.firstName} ${patient.lastName} → ${clinicalAction(patient)}`}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="rounded-full border-slate-200 bg-white text-slate-700"
+                        onClick={() => sendQuickPrompt(`Explain ${patient.firstName} ${patient.lastName} deterioration`)}
+                      >
+                        View explanation
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Surface>
+
+            <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
+              <Surface>
+                <SectionHeader
+                  eyebrow="Alert intelligence"
+                  title="Grouped alert triage"
+                  description="Duplicate signals are grouped into clinical problem buckets so teams can acknowledge, assign, or escalate without alert fatigue."
+                />
+                <div className="mt-5 space-y-4">
+                  {groupedAlerts.map((group) => {
+                    const stateClass =
+                      group.state === "Escalated"
+                        ? "bg-rose-100 text-rose-800"
+                        : group.state === "Acknowledged"
+                          ? "bg-emerald-100 text-emerald-800"
+                          : "bg-amber-100 text-amber-800"
+
+                    return (
+                      <div key={group.name} className="rounded-[24px] border border-slate-200 bg-white p-5">
+                        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                          <div>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <div className="text-base font-semibold text-slate-900">{group.name}</div>
+                              <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
+                                {group.alerts.length}
+                              </span>
+                              <span className={cn("rounded-full px-3 py-1 text-xs font-semibold", stateClass)}>
+                                {group.state}
+                              </span>
+                            </div>
+                            <div className="mt-2 text-sm leading-6 text-slate-600">{group.alerts[0]?.description}</div>
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              {group.alerts.map((alert) => (
+                                <span
+                                  key={alert.id}
+                                  className={cn("rounded-full px-3 py-1 text-xs font-medium", severityClass(alert.severity))}
+                                >
+                                  {alert.title}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              className="rounded-full border-slate-200 bg-white text-slate-700"
+                              onClick={() => updateAlertState(group.ids, "Acknowledged")}
+                            >
+                              Acknowledge
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              className="rounded-full border-slate-200 bg-white text-slate-700"
+                              onClick={() => {
+                                if (group.patientId) startTransition(() => onSelectPatient(group.patientId))
+                              }}
+                            >
+                              Assign
+                            </Button>
+                            <Button
+                              type="button"
+                              className="rounded-full bg-slate-900 text-white hover:bg-slate-800"
+                              onClick={() => {
+                                updateAlertState(group.ids, "Escalated")
+                                if (group.patientId) startTransition(() => onSelectPatient(group.patientId))
+                              }}
+                            >
+                              Escalate
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
                 </div>
               </Surface>
-              <ChatPanel
-                messages={messages.slice(-4)}
-                draft={draft}
-                setDraft={setDraft}
-                onSend={sendMessage}
-                onReset={resetConversation}
-                selectedPatient={selectedPatient}
-                assistantState={assistantState}
-                compact
+
+              <Surface>
+                <SectionHeader
+                  eyebrow="AI reasoning"
+                  title={`Why ${selectedPatient.firstName} ${selectedPatient.lastName} is critical`}
+                  description="Doctors trust reasoning, trend movement, and drivers more than one isolated number."
+                />
+                <div className="mt-5 rounded-[24px] border border-slate-200 bg-slate-50 p-5">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <div className="text-sm font-medium text-slate-500">Clinical risk</div>
+                      <div className="mt-1 text-3xl font-semibold text-slate-900">
+                        {selectedPatient.status === "Critical" ? "HIGH" : "WATCH"} ({selectedPatient.riskScore}%)
+                      </div>
+                    </div>
+                    <span className="rounded-full bg-cyan-100 px-3 py-1 text-xs font-semibold text-cyan-800">
+                      {selectedPatient.model}
+                    </span>
+                  </div>
+                  <div className="mt-5 space-y-3">
+                    {selectedDrivers.map((driver) => (
+                      <div
+                        key={driver}
+                        className="flex items-start justify-between gap-3 rounded-[18px] border border-slate-200 bg-white px-4 py-3"
+                      >
+                        <div className="text-sm font-medium text-slate-800">{driver}</div>
+                        <ChevronRight className="mt-0.5 h-4 w-4 text-slate-400" />
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-5 rounded-[18px] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">
+                    Next step: {clinicalAction(selectedPatient)}.
+                  </div>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      className="rounded-full bg-cyan-300 text-slate-950 hover:bg-cyan-200"
+                      onClick={() => sendQuickPrompt(`Explain ${selectedPatient.firstName} ${selectedPatient.lastName} deterioration`)}
+                    >
+                      View full explanation
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="rounded-full border-slate-200 bg-white text-slate-700"
+                      onClick={() => sendQuickPrompt(`Compare previous state for ${selectedPatient.firstName} ${selectedPatient.lastName}`)}
+                    >
+                      Compare previous state
+                    </Button>
+                  </div>
+                </div>
+              </Surface>
+            </div>
+
+            <Surface>
+              <SectionHeader
+                eyebrow="Review queue"
+                title="Patients who need immediate review"
+                description="Each row is designed for rapid scanning: who is unstable, why they are unstable, and what to do now."
+              />
+              <div className="mt-5">
+                <PatientTable rows={criticalPatients} selectedId={selectedPatientId} onSelect={onSelectPatient} />
+              </div>
+            </Surface>
+
+            <div className="grid gap-6 xl:grid-cols-[1fr_1fr]">
+              <TrendCard
+                title="Passive analytics"
+                subtitle="Keep trends available, but clearly below urgent actions."
+                color={dashboardMetricConfig[dashboardMetricView].color}
+                data={dashboardMetricConfig[dashboardMetricView].data}
+                dataKey="value"
+                kind={dashboardMetricView === "risk" ? "area" : "line"}
+              />
+              <NarrativeList
+                eyebrow="Care progression"
+                title="What should happen next"
+                description="Clinical copy is direct and operational, not decorative."
+                items={decisionQueue.map((patient) => ({
+                  title: `${patient.firstName} ${patient.lastName} • ${clinicalAction(patient)}`,
+                  detail: `${patient.reason} Updated ${patient.lastUpdated}. Assigned to ${patient.assignedAgent}.`,
+                  tag: patient.status,
+                }))}
               />
             </div>
           </div>
-        </Surface>
 
-        <MetricGrid items={metrics} />
+          <div className="space-y-6">
+            <MetricGrid items={metrics} />
 
-        <OpsCards
-          eyebrow="Core operating loops"
-          title="Theory-to-product system blocks"
-          description="Expanded from the paper's key loops: monitoring, diagnosis, medication safety, workflow coordination, and continuous learning."
-          tone="violet"
-          items={[
-            { label: "Real-time monitoring", value: "IoT active", note: "Nurse Agent continuously interprets vitals, alarms, and bedside telemetry." },
-            { label: "AI diagnosis", value: "4 models", note: "Doctor Agent uses ML outputs plus explainability factors to support clinical judgment." },
-            { label: "Drug safety", value: "5 blocks", note: "Drug Agent resolves interactions, allergy conflicts, and dosage concerns before harm." },
-            { label: "Workflow orchestration", value: "7 flows", note: "Admin Agent coordinates beds, staff pressure, and emergency routing." },
-            { label: "Learning loop", value: "Closed", note: "Model Insights tracks feedback, drift, and retraining triggers from outcomes." },
-            { label: "Unified summary", value: "1 view", note: "Dashboard pulls EHR, labs, meds, vitals, and agent decisions into one surface." },
-          ]}
-        />
-
-        <Surface>
-          <SectionHeader
-            eyebrow="Live critical alerts"
-            title="Real-time alert strip"
-            description="Soft red urgency with strong hierarchy, visible source agent, and minimal cognitive noise."
-          />
-          <div className="mt-5 flex gap-4 overflow-x-auto pb-2">
-            {liveAlerts.map((alert, index) => (
-              <div
-                key={alert.id}
-                className={cn(
-                  "min-w-[280px] flex-1 rounded-[24px] border border-rose-400/16 bg-rose-500/8 p-5",
-                  index === 0 && "animate-[pulse-glow_2.8s_ease-in-out_infinite]",
-                )}
-              >
-                <div className="flex items-start justify-between gap-3">
+            <Surface>
+              <SectionHeader
+                eyebrow="Command center"
+                title="Use the assistant like an operator"
+                description="Suggested queries are one-click actions so the assistant behaves like a real clinical co-pilot."
+              />
+              <div className="mt-5 flex flex-wrap gap-2">
+                {[
+                  "Show all ICU candidates",
+                  `Explain ${selectedPatient.firstName} ${selectedPatient.lastName} deterioration`,
+                  "List drug conflicts today",
+                  "Give me the next best action",
+                ].map((prompt) => (
+                  <Button
+                    key={prompt}
+                    type="button"
+                    variant="outline"
+                    className="rounded-full border-slate-200 bg-white text-slate-700"
+                    onClick={() => sendQuickPrompt(prompt)}
+                  >
+                    {prompt}
+                  </Button>
+                ))}
+              </div>
+              <div className="mt-5 rounded-[24px] border border-slate-200 bg-slate-50 p-4">
+                <div className="flex items-center justify-between gap-3">
                   <div>
-                    <span className={cn("rounded-full px-3 py-1 text-[11px] font-medium", severityClass(alert.severity))}>
-                      {alert.severity}
-                    </span>
-                    <h3 className="mt-3 text-lg font-semibold text-white">{alert.title}</h3>
-                    <p className="mt-2 text-sm leading-6 text-slate-200">{alert.description}</p>
+                    <div className="text-sm font-medium text-slate-900">System heartbeat</div>
+                    <div className="mt-1 text-sm text-slate-500">
+                      Updated {selectedPatient.lastUpdated} • {liveAlerts.length} active grouped signals
+                    </div>
                   </div>
-                  <span className="text-xs text-slate-300">{alert.time}</span>
-                </div>
-                <div className="mt-4 flex items-center justify-between gap-3">
-                  <AgentPill agent={alert.agent} />
-                  <span className="text-[11px] uppercase tracking-[0.22em] text-rose-100/70">{alert.tag}</span>
+                  <span className="inline-flex h-3 w-3 animate-pulse rounded-full bg-emerald-400" />
                 </div>
               </div>
-            ))}
+            </Surface>
+
+            <ChatPanel
+              messages={messages}
+              draft={draft}
+              setDraft={setDraft}
+              onSend={sendMessage}
+              onQuickPrompt={sendQuickPrompt}
+              onReset={resetConversation}
+              selectedPatient={selectedPatient}
+              assistantState={assistantState}
+              compact
+            />
+
+            <Surface>
+              <SectionHeader
+                eyebrow="Explainability depth"
+                title="Evidence doctors can trust"
+                description="Top drivers, clear trend movement, and critical lab evidence sit next to the AI recommendation."
+              />
+              <div className="mt-5 space-y-3">
+                {selectedCriticalLabs.length ? (
+                  selectedCriticalLabs.map((report) => (
+                    <div key={report.label} className="rounded-[20px] border border-slate-200 bg-white px-4 py-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="text-sm font-medium text-slate-900">{report.label}</div>
+                        <span className="rounded-full bg-rose-100 px-3 py-1 text-xs font-semibold text-rose-800">
+                          {report.status}
+                        </span>
+                      </div>
+                      <div className="mt-2 text-sm text-slate-500">{report.value}</div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="rounded-[20px] border border-emerald-200 bg-emerald-50 px-4 py-4 text-sm text-emerald-900">
+                    No critical lab drivers are active right now for the selected patient.
+                  </div>
+                )}
+              </div>
+            </Surface>
           </div>
-        </Surface>
-
-        <div className="grid gap-5 xl:grid-cols-[1.2fr_0.8fr]">
-          <Surface>
-            <SectionHeader eyebrow="Patient overview" title="AI-prioritized patient table" description="Click any patient to update the focus context across the dashboard." />
-            <div className="mt-5">
-              <PatientTable rows={filteredPatients} selectedId={selectedPatientId} onSelect={onSelectPatient} />
-            </div>
-          </Surface>
-          <Surface>
-            <SectionHeader eyebrow="Assigned AI insight" title={selectedPatient.diagnosis} description={selectedPatient.reason} action={<AgentPill agent={selectedPatient.assignedAgent} />} />
-            <div className="mt-6 grid gap-4 sm:grid-cols-2">
-              <SmallMetric label="Confidence" value={formatConfidence(selectedPatient.confidence)} note={selectedPatient.model} />
-              <SmallMetric label="Status" value={selectedPatient.status} note={`Room ${selectedPatient.room}`} />
-            </div>
-            <div className="mt-5 space-y-3">
-              {selectedPatient.medications.map((medication) => (
-                <div key={medication} className="flex items-center justify-between rounded-[20px] border border-white/10 bg-white/5 px-4 py-3">
-                  <span className="text-sm text-white">{medication}</span>
-                  <span className="text-xs text-slate-400">Active medication</span>
-                </div>
-              ))}
-            </div>
-          </Surface>
         </div>
-
-        <Surface>
-          <SectionHeader eyebrow="AI cards" title="Insight grid" description="The differentiator of the product: decisions with reason, source agent, and confidence." />
-          <div className="mt-5">
-            <InsightGrid items={insightCards} />
-          </div>
-        </Surface>
-
-        <div className="grid gap-5 xl:grid-cols-5">
-          <TrendCard title="Risk prediction graph" subtitle="System deterioration movement" color="#22d3ee" data={riskData} dataKey="value" />
-          <TrendCard title="Hospital load graph" subtitle="Operational stress across the shift" color="#a78bfa" data={loadData} dataKey="value" kind="area" />
-          <TrendCard title="Drug interaction frequency" subtitle="Medication safety events this week" color="#f59e0b" data={drugData} dataKey="value" kind="bar" />
-          <TrendCard title="ICU demand forecast" subtitle="Protected bed demand window" color="#fb7185" data={icuData} dataKey="value" kind="area" />
-          <TrendCard title="Temperature drift" subtitle="Fever trajectory in the active case" color="#34d399" data={temperatureData} dataKey="value" />
-        </div>
-
-        <div className="grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
-          <NarrativeList
-            eyebrow="Clinical abnormalities"
-            title="Labs and findings driving AI escalation"
-            description="These evidence cards keep the dashboard aligned with your paper's explainable diagnosis and summary goals."
-            items={labAbnormalities.map((item) => ({
-              title: `${item.patient} • ${item.marker} ${item.value}`,
-              detail: item.why,
-              tag: item.status,
-            }))}
-          />
-          <SignalBars
-            title="Cross-agent confidence picture"
-            subtitle="How strongly each agent is signaling the need for intervention in the active command cycle."
-            colorClass="bg-cyan-400"
-            items={agentConsensusData.map((item) => ({
-              label: item.label,
-              value: item.value,
-              note: `${item.label} agent confidence in current escalation priority.`,
-            }))}
-          />
-        </div>
-
-        <div className="grid gap-5 xl:grid-cols-[1fr_1fr]">
-          <NarrativeList
-            eyebrow="Interoperability fabric"
-            title="FHIR, HL7, IoT, and pharmacy data exchange"
-            description="The dashboard should make it obvious that this is a connected hospital intelligence layer, not a standalone UI."
-            items={interoperabilityFlows.map((flow) => ({
-              title: `${flow.flow} • ${flow.status}`,
-              detail: `${flow.standard}: ${flow.note}`,
-            }))}
-          />
-          <OpsCards
-            eyebrow="Trust and security"
-            title="Clinical safety controls"
-            description="These controls translate the paper's privacy, traceability, and safe-sharing principles into visible product behavior."
-            tone="emerald"
-            items={securityControls.map((control) => ({
-              label: control.control,
-              value: control.status,
-              note: control.note,
-            }))}
-          />
-        </div>
-      </>
+      </div>
     )
   }
 
@@ -2102,7 +2853,7 @@ function renderPage({
               <SmallMetric label="Active patient" value={patientLabel(selectedPatient)} note={`Room ${selectedPatient.room} • ${selectedPatient.status}`} />
               <SmallMetric label="Patient-scoped docs" value={`${patientScopedReports.length}`} note="Currently visible in the selected patient context" />
             </div>
-            <div className="mt-5 rounded-[22px] border border-white/10 bg-white/5 p-4 text-sm leading-6 text-slate-400">
+            <div className="mt-5 rounded-[22px] border border-slate-200 bg-white p-4 text-sm leading-6 text-slate-400">
               Uploaded reports are simulated as entering the hospital intelligence pipeline, where the Doctor Agent extracts findings,
               the Drug Agent checks medication clues, and the summary layer updates explainable patient context.
             </div>
@@ -2146,116 +2897,294 @@ function renderPage({
 
   if (slug === "patients") {
     return (
-      <>
-        <div className="grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
-          <Surface>
-            <SectionHeader eyebrow={meta.emphasis} title="Patient cohort navigator" description="Search, prioritize, and move between patient contexts without losing the AI recommendation." />
-            <div className="mt-5 space-y-3">
-              {filteredPatients.map((patient) => (
+      <div className="mx-auto max-w-6xl space-y-6">
+        {/* Local Navigation Tabs */}
+        <div className="flex border-b border-slate-200 overflow-x-auto bg-white rounded-t-xl px-4 pt-4 shadow-sm">
+          {["overview", "clinical", "medications", "care plans", "timeline"].map(tab => (
+            <button
+              key={tab}
+              onClick={() => setPatientTab(tab)}
+              className={("px-6 py-3 text-sm font-medium capitalize outline-none transition-colors " + (patientTab === tab ? "border-b-2 border-cyan-600 text-cyan-700" : "text-slate-500 hover:text-slate-700 hover:border-slate-300"))}
+            >
+              {tab === "clinical" ? "Clinical data" : tab}
+            </button>
+          ))}
+        </div>
+
+        <div className="grid gap-6 xl:grid-cols-[0.85fr_1.15fr] 2xl:grid-cols-[0.8fr_1.2fr]">
+          {/* Patient Selector Strip */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-slate-900">Directory</h3>
+              <span className="text-xs font-semibold px-2 py-1 bg-slate-100 rounded text-slate-500">{filteredPatients.length} Active</span>
+            </div>
+            <div className="space-y-2 h-[600px] overflow-y-auto pr-2">
+              {filteredPatients.map(patient => (
                 <button
                   key={patient.id}
-                  type="button"
-                  onClick={() => startTransition(() => onSelectPatient(patient.id))}
-                  className={cn(
-                    "w-full rounded-[24px] border px-4 py-4 text-left transition",
-                    patient.id === selectedPatientId ? "border-cyan-300/30 bg-cyan-400/10" : "border-white/10 bg-white/5 hover:bg-white/7",
-                  )}
+                  onClick={() => {
+                    startTransition(() => onSelectPatient(patient.id))
+                    setPatientTab("overview")
+                  }}
+                  className={("flex w-full items-center gap-4 rounded-xl border p-3 text-left transition " + (patient.id === selectedPatientId ? "border-cyan-200 bg-cyan-50 shadow-sm" : "border-slate-200 bg-white hover:bg-slate-50"))}
                 >
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <div className="text-base font-medium text-white">
-                        {patient.firstName} {patient.lastName}
-                      </div>
-                      <div className="mt-1 text-sm text-slate-400">
-                        {patient.ward} • Room {patient.room}
-                      </div>
-                    </div>
-                    <span className={cn("rounded-full px-3 py-1 text-xs font-medium", statusClass(patient.status))}>
-                      {patient.status}
-                    </span>
+                  <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-slate-100 text-slate-600 font-bold">
+                    {patient.firstName[0]}{patient.lastName[0]}
                   </div>
-                  <div className="mt-3 text-sm leading-6 text-slate-300">{patient.summary}</div>
-                  <div className="mt-4 flex items-center justify-between gap-3">
-                    <AgentPill agent={patient.assignedAgent} />
-                    <span className="text-sm font-semibold text-white">{patient.riskScore}% risk</span>
+                  <div className="flex-1 overflow-hidden">
+                    <div className="truncate font-semibold text-slate-900">{patient.firstName} {patient.lastName}</div>
+                    <div className="truncate text-xs text-slate-500">ID: {patient.mrn} • Ward {patient.ward}</div>
                   </div>
                 </button>
               ))}
             </div>
-          </Surface>
-          <Surface>
-            <SectionHeader eyebrow="Selected patient" title={`${selectedPatient.firstName} ${selectedPatient.lastName}`} description={selectedPatient.summary} action={<AgentPill agent={selectedPatient.assignedAgent} />} />
-            <div className="mt-6 grid gap-4 md:grid-cols-2">
-              <SmallMetric label="Diagnosis" value={selectedPatient.diagnosis} note={selectedPatient.model} />
-              <SmallMetric label="WHY" value={`${selectedPatient.riskScore}% risk`} note={selectedPatient.reason} />
-              <SmallMetric label="Medications" value={`${selectedPatient.medications.length}`} note={selectedPatient.medications.join(", ")} />
-              <SmallMetric label="Allergies" value={selectedPatient.allergies.join(", ")} note="Drug Agent cross-checking" />
-            </div>
-            <div className="mt-6 grid gap-4 xl:grid-cols-4">
-              <TrendCard title="SpO2 trend" subtitle="Oxygen stability over the latest window" color="#34d399" data={spo2Data} dataKey="value" />
-              <TrendCard title="Risk trajectory" subtitle="Predicted deterioration movement" color="#22d3ee" data={patientRiskData} dataKey="value" kind="area" />
-              <TrendCard title="Heart-rate" subtitle="Telemetry movement for selected patient" color="#a78bfa" data={heartData} dataKey="value" />
-              <TrendCard title="Temperature" subtitle="Clinical temperature drift" color="#fb7185" data={temperatureData} dataKey="value" />
-            </div>
-          </Surface>
-        </div>
-        <Surface>
-          <SectionHeader eyebrow="Table view" title="Unified patient list" description="This page keeps the cohort interaction central instead of burying it under KPI cards." />
-          <div className="mt-5">
-            <PatientTable rows={filteredPatients} selectedId={selectedPatientId} onSelect={onSelectPatient} />
           </div>
-        </Surface>
-        <div className="grid gap-5 xl:grid-cols-[1.05fr_0.95fr]">
-          <NarrativeList
-            eyebrow="Patient intelligence"
-            title="Care pathway notes and abnormal findings"
-            description="The patient workspace now combines summary, trajectory, labs, and agent reasoning instead of just a selection list."
-            items={[
-              ...selectedPatient.timeline.map((item) => ({ title: selectedPatient.firstName, detail: item })),
-              ...labAbnormalities.slice(0, 2).map((item) => ({
-                title: `${item.marker} • ${item.value}`,
-                detail: item.why,
-                tag: item.status,
-              })),
-            ]}
-          />
-          <TrendCard title="Ward pressure comparison" subtitle="How the selected patient's ward sits against the hospital load picture" color="#8b5cf6" data={wardLoadData} dataKey="value" kind="bar" />
+
+          <div className="space-y-6">
+            {/* Context/Overview Hero */}
+            <div className="bg-white p-6 rounded-[28px] shadow-sm border border-slate-200">
+              <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
+                <div className="flex items-center gap-4">
+                  <div className="grid h-14 w-14 place-items-center rounded-2xl bg-cyan-50 text-cyan-600 outline outline-1 outline-cyan-200">
+                    <Users className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-bold text-slate-900">{selectedPatient.firstName} {selectedPatient.lastName}</h2>
+                    <div className="mt-1 flex items-center gap-2 text-sm text-slate-500">
+                      <span>ID: {selectedPatient.mrn}</span>
+                      <span>•</span>
+                      <span>Ward: {selectedPatient.ward} (Rm {selectedPatient.room})</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <AgentPill agent={selectedPatient.assignedAgent} />
+                </div>
+              </div>
+
+              {patientTab === "overview" && (
+                <div className="mt-8">
+                  <div className="mb-4 flex items-center justify-between">
+                    <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider">Clinical Snapshot</h3>
+                  </div>
+                  <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-4">
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                      <div className="text-xs font-semibold text-slate-500 uppercase">AI Diagnosis</div>
+                      <div className="mt-2 text-lg font-bold text-slate-900 leading-tight">{selectedPatient.diagnosis}</div>
+                      <div className="mt-2 text-xs text-slate-500">{selectedPatient.model}</div>
+                    </div>
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                      <div className="text-xs font-semibold text-slate-500 uppercase">Risk Score</div>
+                      <div className="mt-2 text-3xl font-bold text-slate-900">{selectedPatient.riskScore}%</div>
+                      <div className="mt-1 text-xs text-slate-500">Predicted trajectory</div>
+                    </div>
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                      <div className="text-xs font-semibold text-slate-500 uppercase">Current Status</div>
+                      <div className="mt-3">
+                        <span className={("inline-flex rounded-full px-3 py-1 text-xs font-bold " + statusClass(selectedPatient.status))}>
+                          {selectedPatient.status}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                      <div className="text-xs font-semibold text-slate-500 uppercase">Vitals Overview</div>
+                      <div className="mt-2 text-sm font-medium text-slate-900 flex justify-between"><span>HR</span><span>{selectedPatient.vitals.heartRateBpm} bpm</span></div>
+                      <div className="mt-1 text-sm font-medium text-slate-900 flex justify-between"><span>SpO2</span><span>{selectedPatient.vitals.spo2Pct}%</span></div>
+                      <div className="mt-1 text-sm font-medium text-slate-900 flex justify-between"><span>BP</span><span>{selectedPatient.vitals.systolicMmHg}/{selectedPatient.vitals.diastolicMmHg}</span></div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {patientTab === "timeline" && (
+                <div className="mt-8 space-y-4">
+                  <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-4">Monitoring Timeline</h3>
+                  <div className="border-l-2 border-slate-100 ml-3 pl-4 space-y-6">
+                    {selectedPatient.timeline.map((item, idx) => (
+                      <div key={idx} className="relative">
+                        <div className="absolute -left-[23px] top-1.5 h-3 w-3 rounded-full border-2 border-white bg-cyan-500" />
+                        <div className="text-sm text-slate-900 bg-slate-50 rounded-lg p-3 border border-slate-100">{item}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {patientTab === "care plans" && (
+                <div className="mt-8 space-y-4">
+                  <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-4">Patient Care Strategies</h3>
+                  <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden text-sm">
+                    <div className="grid grid-cols-[1fr_auto_auto] gap-4 border-b border-slate-200 bg-slate-50 px-4 py-3 font-semibold text-slate-600">
+                      <div>Plan Phase</div>
+                      <div className="w-24">Priority</div>
+                      <div className="w-40">Agent</div>
+                    </div>
+                    <div className="grid grid-cols-[1fr_auto_auto] items-center gap-4 border-b border-slate-100 px-4 py-3">
+                      <div className="text-slate-900">{selectedPatient.reason}</div>
+                      <div className="w-24"><span className="rounded bg-rose-50 px-2 py-1 text-xs text-rose-600 font-bold">High</span></div>
+                      <div className="w-40"><AgentPill agent={selectedPatient.assignedAgent} /></div>
+                    </div>
+                    <div className="grid grid-cols-[1fr_auto_auto] items-center gap-4 px-4 py-3">
+                      <div className="text-slate-900">Monitor stability per primary evaluation</div>
+                      <div className="w-24"><span className="rounded bg-amber-50 px-2 py-1 text-xs text-amber-600 font-bold">Medium</span></div>
+                      <div className="w-40"><AgentPill agent={selectedPatient.assignedAgent} /></div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {patientTab === "medications" && (
+                <div className="mt-8 space-y-4">
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider">Active Prescriptions</h3>
+                    <AgentPill agent="Drug Agent" />
+                  </div>
+                  <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden text-sm">
+                    <div className="grid grid-cols-2 gap-4 border-b border-slate-200 bg-slate-50 px-4 py-3 font-semibold text-slate-600">
+                      <div>Medication</div>
+                      <div>Status / Warnings</div>
+                    </div>
+                    {selectedPatient.medications.length === 0 ? (
+                      <div className="p-4 text-slate-500">No active medications recorded</div>
+                    ) : (
+                      selectedPatient.medications.map((med, i) => (
+                        <div key={i} className="grid grid-cols-2 items-center gap-4 border-b last:border-b-0 border-slate-100 px-4 py-3">
+                          <div className="font-semibold text-slate-900">{med}</div>
+                          <div className="text-slate-500">Active — clear of detected conflicts</div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {patientTab === "clinical" && (
+                <div className="mt-8 space-y-4">
+                  <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-4">Vitals Trends</h3>
+                  <div className="grid gap-4 xl:grid-cols-2">
+                    <TrendCard title="SpO2 trend" subtitle="Oxygen stability over the latest window" color="#10B981" data={spo2Data} dataKey="value" />
+                    <TrendCard title="Risk trajectory" subtitle="Predicted deterioration movement" color="#0ea5e9" data={patientRiskData} dataKey="value" kind="area" />
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
-      </>
+      </div>
     )
   }
 
   if (slug === "alerts") {
+    const groupedAlerts = Object.values(
+      liveAlerts.reduce(
+        (groups, alert) => {
+          const name = alertClusterName(alert)
+          const current = groups[name] ?? { name, alerts: [] as IntelligenceAlert[] }
+          current.alerts.push(alert)
+          groups[name] = current
+          return groups
+        },
+        {} as Record<string, { name: string; alerts: IntelligenceAlert[] }>,
+      ),
+    )
+      .map((group) => {
+        const ids = group.alerts.map((alert) => alert.id)
+        return {
+          ...group,
+          ids,
+          patientId: resolveAlertPatientId(group.alerts[0]),
+          state: aggregateAlertState(ids, alertStates),
+        }
+      })
+      .sort((left, right) => right.alerts.length - left.alerts.length)
+
     return (
       <>
         <div className="grid gap-5 xl:grid-cols-[1.15fr_0.85fr]">
           <Surface>
-            <SectionHeader eyebrow={meta.emphasis} title="Escalation queue" description="Grouped by urgency so the triage flow is obvious." />
-            <div className="mt-5 grid gap-4 lg:grid-cols-3">
-              {(["Critical", "High", "Medium"] as const).map((severity) => (
-                <div key={severity} className="rounded-[24px] border border-white/10 bg-black/10 p-4">
-                  <div className="mb-4 flex items-center justify-between">
-                    <div className="text-sm font-medium text-white">{severity}</div>
-                    <span className={cn("rounded-full px-3 py-1 text-xs font-medium", severityClass(severity))}>
-                      {liveAlerts.filter((alert) => alert.severity === severity).length}
-                    </span>
-                  </div>
-                  <div className="space-y-3">
-                    {liveAlerts
-                      .filter((alert) => alert.severity === severity)
-                      .map((alert) => (
-                        <div key={alert.id} className="rounded-[20px] border border-white/10 bg-white/5 p-4">
-                          <div className="text-sm font-medium text-white">{alert.title}</div>
-                          <div className="mt-2 text-sm leading-6 text-slate-400">{alert.description}</div>
-                          <div className="mt-3 flex items-center justify-between gap-3">
-                            <AgentPill agent={alert.agent} />
-                            <span className="text-xs text-slate-400">{alert.time}</span>
+            <SectionHeader
+              eyebrow={meta.emphasis}
+              title="Escalation queue"
+              description="Alerts are grouped into clinical problems so teams can acknowledge, assign, and escalate without duplicate noise."
+            />
+            <div className="mt-5 space-y-4">
+              {groupedAlerts.length ? (
+                groupedAlerts.map((group) => {
+                  const stateClass =
+                    group.state === "Escalated"
+                      ? "bg-rose-100 text-rose-800"
+                      : group.state === "Acknowledged"
+                        ? "bg-emerald-100 text-emerald-800"
+                        : "bg-amber-100 text-amber-800"
+
+                  return (
+                    <div key={group.name} className="rounded-[24px] border border-slate-200 bg-white p-5">
+                      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                        <div className="space-y-3">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <div className="text-base font-semibold text-slate-900">{group.name}</div>
+                            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
+                              {group.alerts.length} signals
+                            </span>
+                            <span className={cn("rounded-full px-3 py-1 text-xs font-semibold", stateClass)}>
+                              {group.state}
+                            </span>
+                          </div>
+                          <div className="text-sm leading-6 text-slate-600">{group.alerts[0]?.description}</div>
+                          <div className="flex flex-wrap gap-2">
+                            {group.alerts.map((alert) => (
+                              <span
+                                key={alert.id}
+                                className={cn("rounded-full px-3 py-1 text-xs font-medium", severityClass(alert.severity))}
+                              >
+                                {alert.title}
+                              </span>
+                            ))}
+                          </div>
+                          <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
+                            <AgentPill agent={group.alerts[0]?.agent ?? "Doctor Agent"} />
+                            <span>Latest update: {group.alerts[0]?.time}</span>
                           </div>
                         </div>
-                      ))}
-                  </div>
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="rounded-full border-slate-200 bg-white text-slate-700"
+                            onClick={() => updateAlertState(group.ids, "Acknowledged")}
+                          >
+                            Acknowledge
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="rounded-full border-slate-200 bg-white text-slate-700"
+                            onClick={() => {
+                              if (group.patientId) startTransition(() => onSelectPatient(group.patientId))
+                            }}
+                          >
+                            Assign
+                          </Button>
+                          <Button
+                            type="button"
+                            className="rounded-full bg-slate-900 text-white hover:bg-slate-800"
+                            onClick={() => {
+                              updateAlertState(group.ids, "Escalated")
+                              if (group.patientId) startTransition(() => onSelectPatient(group.patientId))
+                            }}
+                          >
+                            Escalate
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })
+              ) : (
+                <div className="rounded-[24px] border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm text-emerald-900">
+                  No critical alerts right now. System stable across all wards.
                 </div>
-              ))}
+              )}
             </div>
           </Surface>
           <Surface>
@@ -2307,7 +3236,7 @@ function renderPage({
                 "Clinical note mentions worsening cough and fatigue.",
                 "Drug Agent raised an allergy-related antibiotic concern that narrows the next-best treatment path.",
               ].map((point) => (
-                <div key={point} className="rounded-[22px] border border-white/10 bg-white/5 px-4 py-4 text-sm leading-6 text-slate-300">
+                <div key={point} className="rounded-[22px] border border-slate-200 bg-white px-4 py-4 text-sm leading-6 text-slate-600">
                   {point}
                 </div>
               ))}
@@ -2359,6 +3288,7 @@ function renderPage({
           draft={draft}
           setDraft={setDraft}
           onSend={sendMessage}
+          onQuickPrompt={sendQuickPrompt}
           onReset={resetConversation}
           selectedPatient={selectedPatient}
           assistantState={assistantState}
@@ -2373,9 +3303,9 @@ function renderPage({
                 { label: "Drug", agent: "Drug Agent", detail: "Interactions, allergies, dosage checks" },
                 { label: "Workflow", agent: "Admin Agent", detail: "Beds, staff load, hospital status" },
               ].map((route) => (
-                <div key={route.label} className="rounded-[22px] border border-white/10 bg-white/5 px-4 py-4">
+                <div key={route.label} className="rounded-[22px] border border-slate-200 bg-white px-4 py-4">
                   <div className="flex items-center justify-between gap-3">
-                    <div className="text-sm font-medium text-white">{route.label}</div>
+                    <div className="text-sm font-medium text-slate-900">{route.label}</div>
                     <AgentPill agent={route.agent as AgentName} />
                   </div>
                   <div className="mt-2 text-sm text-slate-400">{route.detail}</div>
@@ -2390,8 +3320,8 @@ function renderPage({
                 <button
                   key={prompt}
                   type="button"
-                  onClick={() => setDraft(prompt)}
-                  className="rounded-full border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-300 transition hover:border-cyan-300/30 hover:text-white"
+                  onClick={() => sendQuickPrompt(prompt)}
+                  className="rounded-full border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600 transition hover:border-cyan-200 hover:text-slate-900"
                 >
                   {prompt}
                 </button>
@@ -2441,16 +3371,16 @@ function renderPage({
           <SectionHeader eyebrow={meta.emphasis} title="Diagnosis reasoning board" description="This page is focused on what the Doctor Agent believes, why it believes it, and what to do next." />
           <div className="mt-6 grid gap-4 lg:grid-cols-3">
             {doctorDecisions.map((decision) => (
-              <div key={decision.patient} className="rounded-[24px] border border-white/10 bg-white/5 p-5">
+              <div key={decision.patient} className="rounded-[24px] border border-slate-200 bg-white p-5">
                 <div className="flex items-center justify-between gap-3">
-                  <div className="text-lg font-medium text-white">{decision.patient}</div>
-                  <span className="rounded-full bg-cyan-400/15 px-3 py-1 text-xs font-medium text-cyan-100">
+                  <div className="text-lg font-medium text-slate-900">{decision.patient}</div>
+                  <span className="rounded-full bg-cyan-100 px-3 py-1 text-xs font-medium text-cyan-800">
                     {decision.confidence}
                   </span>
                 </div>
-                <div className="mt-3 text-base font-medium text-slate-100">{decision.diagnosis}</div>
+                <div className="mt-3 text-base font-medium text-slate-900">{decision.diagnosis}</div>
                 <div className="mt-2 text-sm leading-6 text-slate-400">Why: {decision.why}</div>
-                <div className="mt-4 rounded-[18px] bg-cyan-400/10 px-4 py-3 text-sm text-cyan-50">
+                <div className="mt-4 rounded-[18px] bg-cyan-50 px-4 py-3 text-sm text-cyan-900">
                   {decision.action}
                 </div>
               </div>
@@ -2514,14 +3444,14 @@ function renderPage({
           <SectionHeader eyebrow={meta.emphasis} title="Live bedside queue" description="Large cards and clear tasks make this page feel like a real monitoring console." />
           <div className="mt-6 grid gap-4 lg:grid-cols-3">
             {nurseQueue.map((item) => (
-              <div key={item.patient} className="rounded-[24px] border border-white/10 bg-white/5 p-5">
+              <div key={item.patient} className="rounded-[24px] border border-slate-200 bg-white p-5">
                 <div className="flex items-center justify-between gap-3">
-                  <div className="text-base font-medium text-white">{item.label}</div>
-                  <span className="rounded-full bg-emerald-400/15 px-3 py-1 text-xs font-medium text-emerald-100">
+                  <div className="text-base font-medium text-slate-900">{item.label}</div>
+                  <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-medium text-emerald-800">
                     {item.status}
                   </span>
                 </div>
-                <div className="mt-3 text-sm text-slate-200">{item.patient}</div>
+                <div className="mt-3 text-sm text-slate-700">{item.patient}</div>
                 <div className="mt-2 text-sm leading-6 text-slate-400">{item.note}</div>
                 <div className="mt-4">
                   <AgentPill agent="Nurse Agent" />
@@ -2581,25 +3511,25 @@ function renderPage({
           <SectionHeader eyebrow={meta.emphasis} title="Medication conflict board" description="This page is designed around safety rules, allergy risk, and dosage conflict handling." />
           <div className="mt-6 grid gap-4 lg:grid-cols-3">
             {drugMatrix.map((item) => (
-              <div key={item.pair} className="rounded-[24px] border border-white/10 bg-white/5 p-5">
+              <div key={item.pair} className="rounded-[24px] border border-slate-200 bg-white p-5">
                 <div className="flex items-center justify-between gap-3">
-                  <div className="text-base font-medium text-white">{item.pair}</div>
+                  <div className="text-base font-medium text-slate-900">{item.pair}</div>
                   <span
                     className={cn(
                       "rounded-full px-3 py-1 text-xs font-medium",
                       item.severity === "Critical"
-                        ? "bg-rose-500/15 text-rose-100"
+                        ? "bg-rose-100 text-rose-900"
                         : item.severity === "High"
-                          ? "bg-amber-400/15 text-amber-100"
-                          : "bg-cyan-400/15 text-cyan-100",
+                          ? "bg-amber-100 text-amber-900"
+                          : "bg-cyan-100 text-cyan-900",
                     )}
                   >
                     {item.severity}
                   </span>
                 </div>
-                <div className="mt-3 text-sm text-slate-200">{item.patient}</div>
+                <div className="mt-3 text-sm text-slate-700">{item.patient}</div>
                 <div className="mt-2 text-sm leading-6 text-slate-400">{item.why}</div>
-                <div className="mt-4 rounded-[18px] bg-amber-400/10 px-4 py-3 text-sm text-amber-50">
+                <div className="mt-4 rounded-[18px] bg-amber-50 px-4 py-3 text-sm text-amber-900">
                   {item.action}
                 </div>
               </div>
@@ -2668,11 +3598,11 @@ function renderPage({
           <SectionHeader eyebrow={meta.emphasis} title="Operational command deck" description="Focused on capacity, staffing pressure, and resource orchestration." />
           <div className="mt-6 grid gap-4 lg:grid-cols-3">
             {adminSignals.map((signal) => (
-              <div key={signal.label} className="rounded-[24px] border border-white/10 bg-white/5 p-5">
+              <div key={signal.label} className="rounded-[24px] border border-slate-200 bg-white p-5">
                 <div className="text-sm text-slate-400">{signal.label}</div>
-                <div className="mt-2 text-3xl font-semibold text-white">{signal.value}</div>
+                <div className="mt-2 text-3xl font-semibold text-slate-900">{signal.value}</div>
                 <div className="mt-3 text-sm leading-6 text-slate-400">{signal.detail}</div>
-                <div className="mt-4 rounded-[18px] bg-violet-400/10 px-4 py-3 text-sm text-violet-50">
+                <div className="mt-4 rounded-[18px] bg-violet-50 px-4 py-3 text-sm text-violet-900">
                   {signal.action}
                 </div>
               </div>
@@ -2776,7 +3706,7 @@ function renderPage({
         </div>
         <Surface>
           <SectionHeader eyebrow={meta.emphasis} title="Monitoring insight" description="Nurse Agent translates raw curves into a clear explanation so trends remain actionable." />
-          <div className="mt-6 rounded-[22px] border border-white/10 bg-white/5 p-5 text-sm leading-7 text-slate-300">
+          <div className="mt-6 rounded-[22px] border border-slate-200 bg-white p-5 text-sm leading-7 text-slate-600">
             {selectedPatient.firstName}'s monitoring trend suggests {selectedPatient.status.toLowerCase()} observation because the heart-rate curve is{" "}
             {selectedPatient.trends.heartRate[selectedPatient.trends.heartRate.length - 1] >
             selectedPatient.trends.heartRate[0]
@@ -2815,10 +3745,10 @@ function renderPage({
           <Surface>
             <SectionHeader eyebrow={meta.emphasis} title="Load narrative" description="The Admin Agent turns capacity data into a direct operational recommendation." />
             <div className="mt-6 space-y-3">
-              <div className="rounded-[22px] border border-white/10 bg-white/5 p-4 text-sm leading-6 text-slate-300">
+              <div className="rounded-[22px] border border-slate-200 bg-white p-4 text-sm leading-6 text-slate-600">
                 ER arrivals are above baseline, ICU capacity is protected but thin, and one float nurse reassignment is recommended.
               </div>
-              <div className="rounded-[22px] border border-white/10 bg-white/5 p-4 text-sm leading-6 text-slate-300">
+              <div className="rounded-[22px] border border-slate-200 bg-white p-4 text-sm leading-6 text-slate-600">
                 Best intervention now: hold one bed for shock/sepsis overflow and reduce low-acuity transfers for 60 minutes.
               </div>
             </div>
@@ -2842,9 +3772,9 @@ function renderPage({
               <SectionHeader eyebrow={meta.emphasis} title={group.title} description="Controls tuned for clarity, trust, and real-time operations." />
               <div className="mt-6 space-y-4">
                 {group.items.map((item, index) => (
-                  <label key={item} className="flex items-start gap-3 rounded-[22px] border border-white/10 bg-white/5 p-4">
+                  <label key={item} className="flex items-start gap-3 rounded-[22px] border border-slate-200 bg-white p-4">
                     <input defaultChecked={index !== 2} type="checkbox" className="mt-1 h-4 w-4 rounded border-white/20 bg-transparent text-cyan-400" />
-                    <span className="text-sm leading-6 text-slate-300">{item}</span>
+                    <span className="text-sm leading-6 text-slate-600">{item}</span>
                   </label>
                 ))}
               </div>
@@ -2925,14 +3855,257 @@ function renderPage({
     )
   }
 
+  if (slug === "imaging-monitoring") {
+    const accentMap: Record<string, string> = {
+      cyan:    "bg-cyan-100 text-cyan-800 ring-1 ring-inset ring-cyan-200",
+      amber:   "bg-amber-100 text-amber-800 ring-1 ring-inset ring-amber-200",
+      rose:    "bg-rose-100 text-rose-800 ring-1 ring-inset ring-rose-200",
+      violet:  "bg-violet-100 text-violet-800 ring-1 ring-inset ring-violet-200",
+      emerald: "bg-emerald-100 text-emerald-800 ring-1 ring-inset ring-emerald-200",
+    }
+    const accentBarMap: Record<string, string> = {
+      cyan:    "bg-cyan-400",
+      amber:   "bg-amber-400",
+      rose:    "bg-rose-400",
+      violet:  "bg-violet-400",
+      emerald: "bg-emerald-400",
+    }
+    const catClass: Record<string, string> = {
+      Radiology:  "bg-cyan-50 text-cyan-700 ring-1 ring-inset ring-cyan-200",
+      Cardiac:    "bg-rose-50 text-rose-700 ring-1 ring-inset ring-rose-200",
+      Monitoring: "bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-200",
+    }
+
+    return (
+      <>
+        {/* Hero stats */}
+        <SectionHeader
+          eyebrow={meta.eyebrow}
+          title={meta.label}
+          description={meta.description}
+        />
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <SmallMetric label="Modalities Connected" value="7" note="MRI, CT, Mammogram, X-Ray, US, ECHO, ECG — all wired into the AI OS" />
+          <SmallMetric label="Studies Today (sim.)" value={`${imagingModalities.reduce((s, m) => s + m.throughput, 0)}`} note="Aggregate throughput across all active imaging units" />
+          <SmallMetric label="AI Flags Raised" value={`${Math.round(imagingModalities.reduce((s, m) => s + m.aiFlag, 0) / imagingModalities.length)}% avg`} note="Percentage of studies triggering an agent-level finding flag" />
+          <SmallMetric label="AI Doctor Status" value="Active" note="Multi-modal consultant agent running on all patient timelines" />
+        </div>
+
+        {/* Modality cards */}
+        <Surface>
+          <SectionHeader
+            eyebrow="Imaging infrastructure"
+            title="Hospital imaging modalities"
+            description="Each modality is directly wired into the multi-agent OS via structured events, consuming agents, and explainable outputs."
+          />
+          <div className="mt-6 space-y-4">
+            {imagingModalities.map((modality) => (
+              <div key={modality.id} className="rounded-[24px] border border-slate-200 bg-white p-5 transition hover:shadow-md">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                  <div className="flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className={cn("rounded-full px-3 py-1 text-[11px] font-semibold", accentMap[modality.accentColor])}>
+                        {modality.shortName}
+                      </span>
+                      <span className={cn("rounded-full px-3 py-1 text-[11px] font-medium", catClass[modality.category])}>
+                        {modality.category}
+                      </span>
+                    </div>
+                    <div className="mt-3 text-base font-semibold text-slate-900">{modality.name}</div>
+                    <div className="mt-1 text-[11px] font-medium uppercase tracking-widest text-slate-400">{modality.specs}</div>
+                    <p className="mt-3 text-sm leading-6 text-slate-600">{modality.description}</p>
+                  </div>
+                  <div className="lg:w-64 shrink-0 grid gap-3">
+                    <div className="rounded-[20px] bg-slate-50 border border-slate-200 p-4">
+                      <div className="text-[11px] uppercase tracking-widest text-slate-400">Throughput / day</div>
+                      <div className="mt-2 text-2xl font-bold text-slate-900">{modality.throughput}</div>
+                      <div className="mt-2 h-1.5 rounded-full bg-slate-200">
+                        <div className={cn("h-1.5 rounded-full", accentBarMap[modality.accentColor])} style={{ width: `${Math.min(100, modality.throughput / 1.5)}%` }} />
+                      </div>
+                    </div>
+                    <div className="rounded-[20px] bg-slate-50 border border-slate-200 p-4">
+                      <div className="text-[11px] uppercase tracking-widest text-slate-400">AI flag rate</div>
+                      <div className="mt-2 text-2xl font-bold text-slate-900">{modality.aiFlag}%</div>
+                      <div className="mt-2 h-1.5 rounded-full bg-slate-200">
+                        <div className={cn("h-1.5 rounded-full", accentBarMap[modality.accentColor])} style={{ width: `${modality.aiFlag * 2}%` }} />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-5 grid gap-4 xl:grid-cols-2">
+                  <div className="rounded-[20px] border border-slate-200 bg-slate-50 p-4">
+                    <div className="text-[11px] uppercase tracking-widest text-slate-400 mb-3">AI OS Integration</div>
+                    <p className="text-sm leading-6 text-slate-600">{modality.aiIntegration}</p>
+                    <div className="mt-4 space-y-2">
+                      <div className="text-[11px] uppercase tracking-widest text-slate-400">Event topic</div>
+                      <code className="block rounded-[12px] bg-slate-900 text-cyan-300 px-4 py-2 text-xs font-mono">
+                        {modality.eventTopic}
+                      </code>
+                    </div>
+                  </div>
+                  <div className="rounded-[20px] border border-slate-200 bg-slate-50 p-4">
+                    <div className="text-[11px] uppercase tracking-widest text-slate-400 mb-3">Consuming agents</div>
+                    <div className="flex flex-wrap gap-2 mb-4">
+                      {modality.consumingAgents.map((agent) => (
+                        <span key={agent} className="rounded-full bg-cyan-50 text-cyan-800 ring-1 ring-inset ring-cyan-200 px-3 py-1 text-xs font-medium">
+                          {agent}
+                        </span>
+                      ))}
+                    </div>
+                    <div className="text-[11px] uppercase tracking-widest text-slate-400 mb-2">Output</div>
+                    <div className="text-sm leading-6 text-slate-600">{modality.outputSummary}</div>
+                    <div className="mt-3 flex items-center gap-2 text-xs text-slate-400">
+                      <span>Avg turnaround:</span>
+                      <span className="font-semibold text-slate-700">{modality.avgTurnaround}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Surface>
+
+        {/* Charts row */}
+        <div className="grid gap-5 xl:grid-cols-2">
+          <TrendCard
+            title="Daily study throughput by modality"
+            subtitle="Simulated volume across all imaging units — higher X-Ray and ECG volumes are expected"
+            color="#22d3ee"
+            data={imagingThroughputData}
+            dataKey="value"
+            kind="bar"
+            compact
+          />
+          <TrendCard
+            title="AI flag rate by modality (%)"
+            subtitle="Percentage of studies that raise a Diagnostics Orchestrator Agent flag for review"
+            color="#a78bfa"
+            data={imagingAiFlagData}
+            dataKey="value"
+            kind="bar"
+            compact
+          />
+        </div>
+
+        {/* AI Doctor section */}
+        <Surface>
+          <SectionHeader
+            eyebrow="Intelligent consultant"
+            title="AI Doctor — always-available clinical co-pilot"
+            description="Built on top of all imaging and monitoring sources as part of the multi-agent hospital OS. The AI Doctor does not replace clinicians — it acts as an explainable, safety-checked co-pilot."
+          />
+
+          {/* Data sources table */}
+          <div className="mt-6">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400 mb-3">What the AI Doctor reads</div>
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              {aiDoctorDataSources.map((src) => (
+                <div key={src.label} className="rounded-[20px] border border-slate-200 bg-slate-50 p-4">
+                  <div className="text-sm font-semibold text-slate-900">{src.label}</div>
+                  <div className="mt-1 text-sm text-slate-400">{src.detail}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Capabilities */}
+          <div className="mt-6">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400 mb-3">Capabilities</div>
+            <div className="grid gap-4 lg:grid-cols-2">
+              {aiDoctorCapabilities.map((cap) => (
+                <div key={cap.id} className="rounded-[24px] border border-slate-200 bg-white p-5">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="text-base font-semibold text-slate-900">{cap.title}</div>
+                    <span className="shrink-0 rounded-full bg-cyan-100 text-cyan-800 ring-1 ring-inset ring-cyan-200 px-3 py-1 text-[11px] font-medium">
+                      {cap.tag}
+                    </span>
+                  </div>
+                  <p className="mt-3 text-sm leading-6 text-slate-600">{cap.description}</p>
+                  <div className="mt-4 rounded-[18px] border border-slate-200 bg-slate-50 p-4 text-sm leading-6 text-slate-500">
+                    {cap.detail}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Explainable output bundle preview */}
+          <div className="mt-6">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400 mb-3">Explainable output bundle</div>
+            <div className="rounded-[20px] bg-slate-900 p-5 text-xs text-slate-300 font-mono leading-7 overflow-x-auto">
+              <span className="text-slate-500">{"{"}</span>{"\n"}
+              {"  "}<span className="text-cyan-300">"summary"</span>: <span className="text-emerald-300">"Elevated troponin + irregular ECG + CT findings suggest ACS — escalation recommended"</span>,{"\n"}
+              {"  "}<span className="text-cyan-300">"recommendations"</span>: [{"\n"}
+              {"    {"} <span className="text-cyan-300">"action"</span>: <span className="text-emerald-300">"Cardiology consult + repeat ECG in 30 min"</span>, <span className="text-cyan-300">"priority"</span>: <span className="text-amber-300">"high"</span>, <span className="text-cyan-300">"requiredApprover"</span>: <span className="text-emerald-300">"doctor"</span> {"}"}
+              {"\n  }],"}{"\n"}
+              {"  "}<span className="text-cyan-300">"evidence"</span>: [{"{ "}<span className="text-cyan-300">"source"</span>: <span className="text-emerald-300">"ESC-ACS-2023"</span>, <span className="text-cyan-300">"relevance"</span>: <span className="text-amber-300">0.94</span>{" }"}]{",\n"}
+              {"  "}<span className="text-cyan-300">"safety"</span>: {"{ "}<span className="text-cyan-300">"contraindications"</span>: [<span className="text-emerald-300">"Aspirin allergy on record"</span>], <span className="text-cyan-300">"uncertainty"</span>: <span className="text-amber-300">0.18</span>{" }"}{",\n"}
+              {"  "}<span className="text-cyan-300">"audit"</span>: {"{ "}<span className="text-cyan-300">"modelVersion"</span>: <span className="text-emerald-300">"DCA-v2.4"</span>, <span className="text-cyan-300">"promptVersion"</span>: <span className="text-emerald-300">"cardiac-v1.2"</span>{" }"}
+              {"\n"}<span className="text-slate-500">{"}"}</span>
+            </div>
+          </div>
+        </Surface>
+
+        {/* Agent interaction flow */}
+        <Surface>
+          <SectionHeader
+            eyebrow="Agent interaction map"
+            title="How imaging data flows through the AI OS"
+            description="Imaging and monitoring sources trigger event-driven pipelines that route through specialised agents before any recommendation reaches a clinician."
+          />
+          <div className="mt-6 grid gap-4 xl:grid-cols-3">
+            {[
+              {
+                step: "1 — Imaging event emitted",
+                agents: ["DOA Ingests"],
+                detail: "A completed study emits order.imaging.resulted with modality tag. The Diagnostics Orchestrator Agent queues it, runs AI screening, and routes structured findings.",
+                color: "bg-cyan-50 border-cyan-200",
+                badge: "bg-cyan-100 text-cyan-800",
+              },
+              {
+                step: "2 — Specialist agents activated",
+                agents: ["SDA", "Cardiac Risk", "NMA"],
+                detail: "Depending on modality and acuity, Sepsis/Deterioration, Cardiac Risk, or Nurse Monitoring Agents enrich findings with vitals, labs, and trend context.",
+                color: "bg-violet-50 border-violet-200",
+                badge: "bg-violet-100 text-violet-800",
+              },
+              {
+                step: "3 — AI Doctor synthesises",
+                agents: ["DCA → DSA → QGA"],
+                detail: "The Doctor Co-Pilot Agent synthesises the full evidence bundle, Drug Safety checks for contraindications, and Quality Governance validates before surfacing to the clinician.",
+                color: "bg-emerald-50 border-emerald-200",
+                badge: "bg-emerald-100 text-emerald-800",
+              },
+            ].map((block) => (
+              <div key={block.step} className={cn("rounded-[24px] border p-5", block.color)}>
+                <div className="text-[11px] font-semibold uppercase tracking-widest text-slate-500 mb-2">{block.step}</div>
+                <div className="flex flex-wrap gap-2 mb-4">
+                  {block.agents.map((a) => (
+                    <span key={a} className={cn("rounded-full px-3 py-1 text-xs font-semibold", block.badge)}>{a}</span>
+                  ))}
+                </div>
+                <p className="text-sm leading-6 text-slate-600">{block.detail}</p>
+              </div>
+            ))}
+          </div>
+          <div className="mt-5 rounded-[20px] border border-slate-200 bg-white px-5 py-4 text-sm leading-6 text-slate-500">
+            <span className="font-semibold text-rose-700">Safety guarantee:</span> The AI Doctor acts strictly as a decision-support tool. It never initiates treatment autonomously. All recommendations carry uncertainty scores, evidence citations, and require explicit clinician sign-off before any clinical action is taken.
+          </div>
+        </Surface>
+      </>
+    )
+  }
+
   return (
     <>
       <div className="grid gap-5 lg:grid-cols-2">
         {modelRegistry.map((model) => (
+
           <Surface key={model.id}>
             <div className="flex items-start justify-between gap-3">
               <div>
-                <div className="text-lg font-semibold text-white">{model.name}</div>
+                <div className="text-lg font-semibold text-slate-900">{model.name}</div>
                 <div className="mt-1 text-sm text-slate-400">{model.purpose}</div>
               </div>
               <span className={cn("rounded-full px-3 py-1 text-xs font-medium", modelStatus(model.status))}>
@@ -2990,7 +4163,7 @@ function renderPage({
             "Feedback enters the model evaluation queue with source agent, patient context, and alert outcome.",
             "Models with drift or lower precision move to monitoring or review before promotion.",
           ].map((step) => (
-            <div key={step} className="rounded-[22px] border border-white/10 bg-white/5 px-4 py-4 text-sm leading-6 text-slate-300">
+            <div key={step} className="rounded-[22px] border border-slate-200 bg-white px-4 py-4 text-sm leading-6 text-slate-600">
               {step}
             </div>
           ))}

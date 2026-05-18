@@ -1,4 +1,7 @@
-e# SmartCare+ — 12-Day MVP Execution Plan
+# SmartCare+ — 12-Day MVP Execution Plan (archive)
+
+> **Active sprint (startup pitch, 4 days, Mike + Sayali):** see [`docs/STARTUP_MVP_4DAY_PLAN.md`](docs/STARTUP_MVP_4DAY_PLAN.md)  
+> **Daily checklists:** [Sayali](docs/SAYALI_CHECKLIST.md) · [Mike](docs/MIKE_CHECKLIST.md) · [Team git workflow](docs/TEAM_4DAY_MVP_GUIDE.md)
 
 **Goal:** Take the current half-wired repo and produce a working, deployed, demo-able MVP of the AI-Powered Multi-Agent Smart Hospital System that walks through the **Acute Stroke Emergency case study** end-to-end.
 

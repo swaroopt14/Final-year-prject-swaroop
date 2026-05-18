@@ -1,4 +1,5 @@
 import type { Express } from "express";
+import { authRouter } from "./modules/auth/index.js";
 import { ehrRouter } from "./modules/ehr/index.js";
 import { labRouter } from "./modules/lab/index.js";
 import { vitalsRouter } from "./modules/vitals/index.js";
@@ -8,6 +9,7 @@ import { eventsRouter } from "./events/sse.router.js";
 import { simulationsRouter } from "./modules/simulations/index.js";
 
 export function registerRoutes(app: Express) {
+  app.use("/api/auth", authRouter);
   app.use("/api/ehr", ehrRouter);
   app.use("/api/lab", labRouter);
   app.use("/api/vitals", vitalsRouter);

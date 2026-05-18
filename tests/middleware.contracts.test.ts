@@ -51,6 +51,20 @@ describe("authMiddleware", () => {
     expect(err.statusCode).toBe(401);
     expect(err.code).toBe("AUTH_INVALID");
   });
+
+  it("attaches req.user for a valid sc_token cookie", () => {
+    const token = testToken("nurse");
+    const req: any = {
+      header: () => undefined,
+      cookies: { sc_token: token }
+    };
+    const next = createNext();
+
+    authMiddleware(req, {} as any, next as any);
+
+    expect(next).toHaveBeenCalledWith();
+    expect(req.user).toMatchObject({ sub: "test-user", role: "nurse" });
+  });
 });
 
 describe("authQueryMiddleware", () => {
@@ -67,7 +81,7 @@ describe("authQueryMiddleware", () => {
   });
 
   it("returns AUTH_REQUIRED when query token is absent", () => {
-    const req: any = { query: {} };
+    const req: any = { query: {}, header: () => undefined, cookies: {} };
     const next = createNext();
 
     authQueryMiddleware(req, {} as any, next as any);

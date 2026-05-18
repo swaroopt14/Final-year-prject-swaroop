@@ -293,11 +293,13 @@ backend/
   packages/
     event-bus/                 # kafka/nats adapter, typed topics
     schemas/                   # zod schemas for all events + outputs
-frontend/
+frontend2/
   app/
-    doctor/ nurse/ admin/ patient/
+    login/  [slug]/ dashboards
   components/
-    layout/ agents/ xai/ monitoring/
+    hospital-os/  ui/
+  lib/
+    api.ts  auth.ts  hospital-data.ts
 ```
 
 ---
@@ -309,3 +311,190 @@ If you want the fastest visible “medical intelligence” impact:
 2) **Alert Triage UI**: unify `high_risk_alert` + `drug_alert` into a single triage panel with severity, evidence, and “acknowledge” actions.
 3) **Admin Agent Mesh**: show per-topic throughput, consumer lag, and “last agent heartbeat”.
 
+
+---
+
+## 12) Hospital Imaging & Monitoring Capabilities
+
+This section documents the hospital's diagnostic imaging modalities and continuous monitoring equipment, and describes precisely how each data source is integrated into the multi-agent AI OS (Diagnostics Orchestrator Agent, Cardiac Risk Agents, Nurse Monitoring Agent, etc.).
+
+---
+
+### 12.1 MRI — Comfort-Optimised Imaging
+
+Our MRI system combines advanced noise-reduction technology with a wide-bore design to significantly enhance patient comfort during scans. The quieter operation and spacious bore help reduce anxiety and motion artefacts, enabling high-quality imaging even for claustrophobic or elderly patients.
+
+**AI OS Integration:**
+Within the multi-agent hospital OS, MRI results are ingested by the **Diagnostics Orchestrator Agent (DOA)** and imaging AI models, which can pre-highlight suspicious regions and generate structured summaries for the doctor console while maintaining full human oversight.
+
+- **Event emitted:** `order.imaging.resulted` (modality: `MRI`)
+- **Consuming agents:** DOA → Doctor Co-Pilot Agent (DCA)
+- **Output:** structured radiology summary + annotated finding flags pushed to Doctor Console
+
+---
+
+### 12.2 CT — Low-Dose High-Speed Cardiac CT
+
+The hospital uses a **160-slice CT scanner** designed for rapid, sharp imaging with minimal radiation dose. Its low-dose protocols enable high-resolution cardiac and whole-body scans while prioritising patient safety, making it suitable for emergency and high-throughput settings.
+
+**AI OS Integration:**
+CT series and reports are streamed into the AI OS, where **Sepsis/Deterioration (SDA)** and **Cardiac Risk Agents** use them alongside vitals and labs to refine risk scores and treatment recommendations in real time.
+
+- **Event emitted:** `order.imaging.resulted` (modality: `CT`)
+- **Consuming agents:** DOA → SDA, Cardiac Risk Agent
+- **Output:** updated risk score bundle; critical-finding alerts pushed to nurse + doctor dashboards
+
+---
+
+### 12.3 Mammogram — Low-Dose Digital Mammography
+
+Our full-field digital mammography system delivers highly accurate breast imaging in under five minutes, using low-dose techniques that achieve approximately **20% lower radiation** than typical mammography systems. This improves patient safety without compromising diagnostic sensitivity.
+
+**AI OS Integration:**
+The **AI Doctor** accesses mammography reports and, where available, AI-assisted CAD outputs to support early breast-cancer detection, automatically checking that guideline-recommended follow-ups and repeat screenings are suggested and not missed in the workflow.
+
+- **Event emitted:** `order.imaging.resulted` (modality: `MAMMOGRAM`)
+- **Consuming agents:** DOA → DCA (guideline check via RAG)
+- **Output:** structured screening summary; follow-up reminders auto-generated and attached to patient timeline
+
+---
+
+### 12.4 Digital X-Ray — Automated Self-Adjusting Imaging
+
+The digital X-ray platform is equipped with **automated self-adjustment of exposure parameters**, enabling faster, smoother imaging with consistent quality across patients and body regions. This reduces repeat shots, improves throughput, and enhances patient comfort.
+
+**AI OS Integration:**
+The OS ingests X-ray images and radiology findings so the **Diagnostics Orchestrator Agent** can prioritise critical findings and push alerts (e.g., suspected pneumothorax or fractures) to doctor and nurse dashboards for rapid response.
+
+- **Event emitted:** `order.imaging.resulted` (modality: `XRAY`)
+- **Consuming agents:** DOA → NMA (nurse alert), DCA
+- **Output:** critical-finding flag (pneumothorax, effusion, fracture) → severity-coded alert in Alert Center
+
+---
+
+### 12.5 Ultrasound — SuperOS-Powered Advanced Imaging
+
+Our ultrasound systems use advanced imaging innovations powered by the SuperOS-style AI layer, setting a new benchmark in accuracy and detail for soft-tissue and vascular assessments. Real-time measurements and structured findings are automatically extracted and attached to the patient timeline.
+
+**AI OS Integration:**
+The **AI Doctor** uses this structured ultrasound data (e.g., ejection fraction, valve status, organ measurements, Doppler patterns) to refine differential diagnoses and suggest next-step investigations in an explainable, guideline-aware manner.
+
+- **Event emitted:** `order.imaging.resulted` (modality: `ULTRASOUND`)
+- **Consuming agents:** DOA → DCA (differential refinement), Cardiac Risk Agent (if cardiac view)
+- **Structured fields extracted:** ejection fraction, valve status, organ size measurements, Doppler indices
+
+---
+
+### 12.6 2D ECHO — High-Fidelity Cardiac Assessment
+
+The 2D ECHO platform uses industry-leading technology to capture detailed images of cardiac structure and function, enabling accurate assessment of valves, chambers, and wall motion. This is essential for diagnosing heart failure, valvular disease, and cardiomyopathies.
+
+**AI OS Integration:**
+Echo measurements are fed into specialised **Cardiac Risk Agents** that combine imaging, ECG, and lab data to generate personalised risk profiles and evidence-backed treatment suggestions, always requiring cardiologist approval before action.
+
+- **Event emitted:** `order.imaging.resulted` (modality: `ECHO_2D`)
+- **Consuming agents:** Cardiac Risk Agent → DCA → QGA (governance check)
+- **Guardrail:** all treatment recommendations require explicit cardiologist confirmation; QGA logs acceptance/override
+
+---
+
+### 12.7 ECG — Precision Cardiac Monitoring
+
+Our ECG systems are designed for precision cardiac monitoring and quick detection of rhythm irregularities. Rapid acquisition and clear visualisation support fast triage in emergency and ward settings.
+
+**AI OS Integration:**
+ECG streams are continuously monitored by the **Nurse Monitoring Agent (NMA)** and Cardiac Agents to detect arrhythmias or ischaemic changes early, triggering alerts in the nurse station and doctor console when concerning patterns appear.
+
+- **Event emitted:** `vitals.stream` (type: `ECG_WAVEFORM`) or `ecg.resulted`
+- **Consuming agents:** NMA (real-time rhythm monitoring), Cardiac Risk Agent
+- **Output:** arrhythmia / ST-change alert → `deterioration.alert` → nurse station + doctor console
+
+---
+
+### 12.8 AI Doctor — Intelligent Consultant Agent
+
+On top of these imaging and monitoring sources, the system deploys an **AI Doctor** — a specialised consultant agent built as part of the intelligent AI Operating System for healthcare, inspired by SuperOS-like agentic hospital OS designs. The AI Doctor does not replace clinicians; instead, it acts as an always-available co-pilot.
+
+#### What the AI Doctor Reads
+
+| Source | Data |
+|---|---|
+| EHR | diagnoses, history, allergies |
+| Labs | CBC, metabolic panel, cultures, biomarkers |
+| Medications | current Rx, allergy flags |
+| Vitals | HR, BP, SpO2, RR, temperature (from NMA stream) |
+| Imaging | MRI / CT / X-ray / Ultrasound / ECHO reports + CAD flags |
+| ECG | rhythm analysis, ST changes |
+
+#### How the AI Doctor Reasons
+
+Uses **multi-agent clinical reasoning** (LLM + RAG + ML/RL) to synthesise the full picture for each patient:
+- Retrieves relevant clinical guidelines and hospital SOPs via RAG (Vector DB).
+- Runs ML risk models (SVM / Random Forest / Logistic Regression) for severity stratification.
+- Applies RL-derived treatment policy suggestions (always subject to hard clinical constraints).
+- Produces a typed **explainable output bundle**:
+
+```json
+{
+  "summary": "...",
+  "recommendations": [{ "action": "...", "priority": "high", "requiredApprover": "doctor" }],
+  "evidence": [{ "source": "guideline_id", "snippet": "...", "relevance": 0.92 }],
+  "safety": { "uncertainties": [".."], "contraindications": [".."], "missingData": [".."] },
+  "audit": { "modelVersion": "...", "promptVersion": "...", "retrievalParams": {} }
+}
+```
+
+#### Capabilities
+
+**1. Consultant-Level Q&A**
+Trained on clinical guidelines, hospital protocols, and curated reference material, the AI Doctor can answer most routine and many complex questions at the point of care, in natural language, with multi-lingual support (including multiple Indian languages) similar to SuperOS deployments. It supports doctors, nurses, and admin staff with context-aware explanations — not generic textbook answers — because it sees live patient data from all modalities.
+
+**2. Case Summary & Second-Opinion Support**
+Given a patient, the AI Doctor creates concise case summaries integrating MRI/CT/X-ray/US/ECHO/ECG findings with labs, vitals, and history. It provides a structured second-opinion reasoning chain:
+- "Most likely diagnosis" with evidence weight
+- "Other possibilities" ranked by probability
+- "What evidence supports / contradicts each hypothesis"
+
+**3. Workflow & Safety Integration**
+Every suggestion from the AI Doctor is checked by the **Drug Safety Agent (DSA)**, **Sepsis/Deterioration Agent (SDA)**, and **Quality & Governance Critic Agent (QGA)** before being surfaced — ensuring contraindications or guideline violations are flagged before a clinician sees them.
+
+High-risk decisions (escalation of care, chemotherapy regimen changes, high-risk drug combinations) always require **explicit human confirmation**. All AI outputs and human overrides are logged for audit and continuous learning.
+
+**4. Continuous Learning**
+As real-case outcomes accumulate, the AI Doctor and its underlying models are retrained under strict governance to improve accuracy, reduce bias, and adapt to local population patterns — consistent with the federated-ready design in Section 6 and the research methodology for multi-agent hospital systems.
+
+#### Agent Interaction Map
+
+```mermaid
+flowchart TD
+    IMG["Imaging Sources\n(MRI, CT, X-Ray, US, ECHO)"]
+    ECG["ECG / Vitals Stream"]
+    LAB["Labs, EHR, Medications"]
+
+    DOA["Diagnostics Orchestrator\nAgent (DOA)"]
+    NMA["Nurse Monitoring\nAgent (NMA)"]
+    DCA["AI Doctor /\nDoctor Co-Pilot Agent (DCA)"]
+    DSA["Drug Safety\nAgent (DSA)"]
+    SDA["Sepsis and Deterioration\nAgent (SDA)"]
+    QGA["Quality and Governance\nCritic Agent (QGA)"]
+    CARD["Cardiac Risk\nAgent"]
+
+    UI_DOC["Doctor Console"]
+    UI_NUR["Nurse Station"]
+
+    IMG --> DOA
+    ECG --> NMA
+    ECG --> CARD
+    LAB --> DCA
+    DOA --> DCA
+    NMA --> DCA
+    CARD --> DCA
+    DCA --> DSA
+    DCA --> SDA
+    DCA --> QGA
+    DSA --> UI_DOC
+    SDA --> UI_NUR
+    QGA --> UI_DOC
+```
+
+> **Safety note:** The AI Doctor acts strictly as a decision-support tool. It never initiates treatment autonomously. All recommendations carry uncertainty scores, evidence citations, and require explicit clinician sign-off before any clinical action is taken.

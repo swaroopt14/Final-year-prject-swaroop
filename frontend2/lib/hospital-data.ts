@@ -13,6 +13,7 @@ export type PageSlug =
   | "predictions"
   | "vitals-trends"
   | "hospital-load"
+  | "imaging-monitoring"
   | "settings"
   | "logs"
   | "model-insights"
@@ -155,6 +156,7 @@ export const navigationItems: NavItem[] = [
   { slug: "alerts", label: "Alerts", section: "Main" },
   { slug: "ai-insights", label: "AI Insights", section: "Main" },
   { slug: "chat-assistant", label: "Chat Assistant", section: "Main" },
+  { slug: "imaging-monitoring", label: "Imaging & AI Doctor", section: "Main" },
   { slug: "doctor-agent", label: "Doctor Agent", section: "Agents" },
   { slug: "nurse-agent", label: "Nurse Agent", section: "Agents" },
   { slug: "drug-agent", label: "Drug Agent", section: "Agents" },
@@ -273,9 +275,228 @@ export const pageMeta: Record<
     description: "Track versioning, drift, quality, and the continuous-learning loop behind the AI system.",
     emphasis: "Model governance",
   },
+  "imaging-monitoring": {
+    label: "Imaging & AI Doctor",
+    eyebrow: "Diagnostic Imaging & Intelligent Consultant",
+    description: "Hospital-grade imaging modalities connected to the multi-agent OS, plus the AI Doctor co-pilot that synthesises every signal into explainable, clinician-approved guidance.",
+    emphasis: "Imaging intelligence",
+  },
 }
 
+export type ImagingModality = {
+  id: string
+  name: string
+  shortName: string
+  specs: string
+  description: string
+  aiIntegration: string
+  eventTopic: string
+  consumingAgents: string[]
+  outputSummary: string
+  accentColor: string
+  category: "Radiology" | "Cardiac" | "Monitoring"
+  throughput: number   // scans/studies per day (simulated)
+  aiFlag: number       // % of studies that trigger an AI flag
+  avgTurnaround: string
+}
+
+export const imagingModalities: ImagingModality[] = [
+  {
+    id: "mri",
+    name: "MRI — Comfort-Optimised Imaging",
+    shortName: "MRI",
+    specs: "Wide-bore, noise-reduction, claustrophobia-friendly",
+    description:
+      "Our MRI system combines advanced noise-reduction technology with a wide-bore design to significantly enhance patient comfort during scans. High-quality imaging even for claustrophobic or elderly patients.",
+    aiIntegration:
+      "MRI results are ingested by the Diagnostics Orchestrator Agent and imaging AI models, which pre-highlight suspicious regions and generate structured summaries for the doctor console while maintaining full human oversight.",
+    eventTopic: "order.imaging.resulted (modality: MRI)",
+    consumingAgents: ["Diagnostics Orchestrator Agent", "Doctor Co-Pilot Agent"],
+    outputSummary: "Structured radiology summary + annotated finding flags pushed to Doctor Console",
+    accentColor: "cyan",
+    category: "Radiology",
+    throughput: 38,
+    aiFlag: 22,
+    avgTurnaround: "24 min",
+  },
+  {
+    id: "ct",
+    name: "CT — Low-Dose High-Speed Cardiac CT",
+    shortName: "CT",
+    specs: "160-slice, low-dose protocol, rapid whole-body",
+    description:
+      "A 160-slice CT scanner designed for rapid, sharp imaging with minimal radiation dose. High-resolution cardiac and whole-body scans prioritising patient safety — suitable for emergency and high-throughput settings.",
+    aiIntegration:
+      "CT series and reports are streamed into the AI OS, where Sepsis/Deterioration and Cardiac Risk Agents use them alongside vitals and labs to refine risk scores and treatment recommendations in real time.",
+    eventTopic: "order.imaging.resulted (modality: CT)",
+    consumingAgents: ["Diagnostics Orchestrator Agent", "Sepsis & Deterioration Agent", "Cardiac Risk Agent"],
+    outputSummary: "Updated risk score bundle; critical-finding alerts pushed to nurse + doctor dashboards",
+    accentColor: "amber",
+    category: "Radiology",
+    throughput: 54,
+    aiFlag: 31,
+    avgTurnaround: "12 min",
+  },
+  {
+    id: "mammogram",
+    name: "Mammogram — Low-Dose Digital Mammography",
+    shortName: "Mammogram",
+    specs: "Full-field digital, ~20% lower radiation, <5 min",
+    description:
+      "Full-field digital mammography delivering highly accurate breast imaging in under five minutes, using low-dose techniques that achieve approximately 20% lower radiation than typical systems.",
+    aiIntegration:
+      "The AI Doctor accesses mammography reports and AI-assisted CAD outputs to support early breast-cancer detection, automatically checking that guideline-recommended follow-ups and repeat screenings are not missed.",
+    eventTopic: "order.imaging.resulted (modality: MAMMOGRAM)",
+    consumingAgents: ["Diagnostics Orchestrator Agent", "Doctor Co-Pilot Agent (RAG guideline check)"],
+    outputSummary: "Structured screening summary; follow-up reminders auto-generated on patient timeline",
+    accentColor: "rose",
+    category: "Radiology",
+    throughput: 26,
+    aiFlag: 18,
+    avgTurnaround: "8 min",
+  },
+  {
+    id: "xray",
+    name: "Digital X-Ray — Automated Self-Adjusting",
+    shortName: "X-Ray",
+    specs: "Auto-exposure, self-calibrating, multi-region",
+    description:
+      "Equipped with automated self-adjustment of exposure parameters, enabling faster, smoother imaging with consistent quality across patients and body regions. Reduces repeat shots and improves throughput.",
+    aiIntegration:
+      "The OS ingests X-ray images and radiology findings so the Diagnostics Orchestrator Agent can prioritise critical findings and push alerts (e.g., suspected pneumothorax or fractures) to doctor and nurse dashboards.",
+    eventTopic: "order.imaging.resulted (modality: XRAY)",
+    consumingAgents: ["Diagnostics Orchestrator Agent", "Nurse Monitoring Agent", "Doctor Co-Pilot Agent"],
+    outputSummary: "Critical-finding flag (pneumothorax, effusion, fracture) → severity-coded alert in Alert Center",
+    accentColor: "violet",
+    category: "Radiology",
+    throughput: 88,
+    aiFlag: 14,
+    avgTurnaround: "5 min",
+  },
+  {
+    id: "ultrasound",
+    name: "Ultrasound — SuperOS-Powered Advanced Imaging",
+    shortName: "Ultrasound",
+    specs: "AI-powered, real-time measurements, Doppler",
+    description:
+      "Advanced imaging innovations powered by the SuperOS-style AI layer, setting a new benchmark in accuracy and detail for soft-tissue and vascular assessments. Real-time structured findings automatically extracted.",
+    aiIntegration:
+      "The AI Doctor uses structured ultrasound data (ejection fraction, valve status, organ measurements, Doppler patterns) to refine differential diagnoses and suggest next-step investigations in an explainable, guideline-aware manner.",
+    eventTopic: "order.imaging.resulted (modality: ULTRASOUND)",
+    consumingAgents: ["Diagnostics Orchestrator Agent", "Doctor Co-Pilot Agent", "Cardiac Risk Agent"],
+    outputSummary: "Ejection fraction, valve status, organ measurements → differential refinement bundle",
+    accentColor: "emerald",
+    category: "Radiology",
+    throughput: 46,
+    aiFlag: 27,
+    avgTurnaround: "18 min",
+  },
+  {
+    id: "echo",
+    name: "2D ECHO — High-Fidelity Cardiac Assessment",
+    shortName: "2D ECHO",
+    specs: "Industry-leading cardiac imaging, valves + chambers",
+    description:
+      "Captures detailed images of cardiac structure and function — accurate assessment of valves, chambers, and wall motion. Essential for diagnosing heart failure, valvular disease, and cardiomyopathies.",
+    aiIntegration:
+      "Echo measurements are fed into Cardiac Risk Agents that combine imaging, ECG, and lab data to generate personalised risk profiles and evidence-backed treatment suggestions — always requiring cardiologist approval.",
+    eventTopic: "order.imaging.resulted (modality: ECHO_2D)",
+    consumingAgents: ["Cardiac Risk Agent", "Doctor Co-Pilot Agent", "Quality & Governance Critic Agent"],
+    outputSummary: "Personalised cardiac risk profile + evidence-backed treatment plan flagged for cardiologist approval",
+    accentColor: "rose",
+    category: "Cardiac",
+    throughput: 32,
+    aiFlag: 41,
+    avgTurnaround: "30 min",
+  },
+  {
+    id: "ecg",
+    name: "ECG — Precision Cardiac Monitoring",
+    shortName: "ECG",
+    specs: "12-lead, continuous telemetry, rapid acquisition",
+    description:
+      "Designed for precision cardiac monitoring and quick detection of rhythm irregularities. Rapid acquisition and clear visualisation support fast triage in emergency and ward settings.",
+    aiIntegration:
+      "ECG streams are continuously monitored by the Nurse Monitoring Agent and Cardiac Agents to detect arrhythmias or ischaemic changes early, triggering alerts in the nurse station and doctor console when concerning patterns appear.",
+    eventTopic: "vitals.stream (type: ECG_WAVEFORM) or ecg.resulted",
+    consumingAgents: ["Nurse Monitoring Agent", "Cardiac Risk Agent"],
+    outputSummary: "Arrhythmia/ST-change alert → deterioration.alert → nurse station + doctor console",
+    accentColor: "amber",
+    category: "Monitoring",
+    throughput: 140,
+    aiFlag: 19,
+    avgTurnaround: "Real-time",
+  },
+]
+
+export type AiDoctorCapability = {
+  id: string
+  title: string
+  description: string
+  detail: string
+  tag: string
+}
+
+export const aiDoctorCapabilities: AiDoctorCapability[] = [
+  {
+    id: "qna",
+    title: "Consultant-Level Q&A",
+    description:
+      "Answers routine and complex questions at the point of care in natural language, including multiple Indian languages, grounded in live patient data from all modalities.",
+    detail:
+      "Trained on clinical guidelines, hospital protocols, and curated reference material. Supports doctors, nurses, and admin staff with context-aware explanations — not generic textbook answers — because it sees the full live patient record.",
+    tag: "LLM + RAG",
+  },
+  {
+    id: "summary",
+    title: "Case Summary & Second Opinion",
+    description:
+      "Generates concise case summaries integrating MRI/CT/X-ray/US/ECHO/ECG findings with labs, vitals, and history.",
+    detail:
+      "Provides a structured second-opinion reasoning chain: most likely diagnosis with evidence weight, other possibilities ranked by probability, and what evidence supports or contradicts each hypothesis.",
+    tag: "Multi-modal synthesis",
+  },
+  {
+    id: "safety",
+    title: "Workflow & Safety Integration",
+    description:
+      "Every suggestion is checked by Drug Safety, Sepsis, and Quality/Governance Agents before display — ensuring no contraindications or guideline violations reach the clinician unchecked.",
+    detail:
+      "High-risk decisions (escalation of care, chemotherapy regimen changes, high-risk drug combinations) always require explicit human confirmation. All AI outputs and human overrides are logged for audit and continuous learning.",
+    tag: "Human-in-the-loop",
+  },
+  {
+    id: "learning",
+    title: "Continuous Learning",
+    description:
+      "As real-case outcomes accumulate, the AI Doctor and its underlying models are retrained under strict governance to improve accuracy and reduce bias.",
+    detail:
+      "Adapts to local population patterns using a federated-ready design that keeps patient data within hospital boundaries while benefiting from cross-site model improvements.",
+    tag: "Federated ML",
+  },
+]
+
+export const aiDoctorDataSources = [
+  { label: "EHR", detail: "Diagnoses, history, allergies" },
+  { label: "Labs", detail: "CBC, metabolic panel, cultures, biomarkers" },
+  { label: "Medications", detail: "Current Rx, allergy flags, interaction history" },
+  { label: "Vitals", detail: "HR, BP, SpO₂, RR, temperature from NMA stream" },
+  { label: "Imaging", detail: "MRI / CT / X-ray / US / ECHO reports + CAD flags" },
+  { label: "ECG", detail: "Rhythm analysis, ST changes, arrhythmia flags" },
+]
+
+export const imagingThroughputData = imagingModalities.map((m) => ({
+  label: m.shortName,
+  value: m.throughput,
+}))
+
+export const imagingAiFlagData = imagingModalities.map((m) => ({
+  label: m.shortName,
+  value: m.aiFlag,
+}))
+
 export const patients: PatientRecord[] = [
+
   {
     id: "p001",
     mrn: "MRN-000145",
